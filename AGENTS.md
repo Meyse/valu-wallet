@@ -27,6 +27,7 @@ Compact map for coding agents in this repository. Keep it short.
 ## Working rules
 
 - Source shows what the app does. The Figma design from the Valu team shows what the redesign must look like. Report disagreements; do not change one to match the other without a decision from Max.
+- `DESIGN.md` is the redesign design authority next to the Figma file (and its Paper import "Valu Wallet"). Read it before you design or build a redesigned screen.
 - Treat keys, seeds, addresses, identity records, balances, and QR or deeplink payloads as sensitive.
 - Keep changes scoped. Do not refactor unrelated wallet code.
 - Put agent working notes in `*.local.md` files. Do not commit them.
