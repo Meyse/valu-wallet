@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valu Wallet - Onboarding, one living gradient</title>
+<!--
+  Mockup of the Paper onboarding artboards 02 "Take control", 06 "Connect account" and 09 "Accept credentials" (402 x 874).
+  ONE background sits behind every screen. Its colours are a function of time only (not of the screen):
+  02 -> 06 -> 09 -> 04 -> 02 colour sets, found on the Paper artboards, 180 s per cycle at 1x.
+  The 11 radial colour fields are fitted to the Paper PNG fills; the fields' colours, the glow position and the field
+  motion are driven by the same clock, so colour change and movement are one motion (no crossfade of two pictures).
+  One self-contained file: no build step, no external script, no image files.
+-->
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: #0e0e0e; }
+  body { min-height: 100vh; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 40px; padding: 24px;
+         font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; color: #e6e6e6; }
+
+  /* ---------- Phone frame (plain, 402 x 874 = artboard) ---------- */
+  .phone { position: relative; flex: none; width: 402px; height: 874px; background: #292929; border-radius: 62px; overflow: clip;
+           box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 30px 80px rgba(0,0,0,.5);
+           font-synthesis: none; -webkit-font-smoothing: antialiased; font-family: "Inter", system-ui, sans-serif; font-size: 12px; line-height: 16px; isolation: isolate; }
+
+  /* ---------- The ONE background: glow (Paper "Gradient glow": 614 x 699 box, rotated -21.57deg) ---------- */
+  .glow { position: absolute; width: 614px; height: 699px; rotate: -21.57deg; transform-origin: 50% 50%; pointer-events: none; opacity: 0; transition: opacity 2.2s ease-out; }
+  .phone[data-glow="on"] .glow { opacity: 1; }
+  .glow-in { position: absolute; inset: 0; opacity: .91; background: rgb(var(--base, 80,249,189));
+    /* soft edge measured from the Paper PNG alpha: ellipse 263 x 305, flat to 60%, fading to 0 at 110% */
+    -webkit-mask-image: radial-gradient(263px 305px at 50% 50%, #000 0 60%, rgba(0,0,0,.97) 66%, rgba(0,0,0,.87) 73%, rgba(0,0,0,.68) 81%, rgba(0,0,0,.44) 88%, rgba(0,0,0,.22) 95%, rgba(0,0,0,.08) 103%, transparent 110%);
+            mask-image: radial-gradient(263px 305px at 50% 50%, #000 0 60%, rgba(0,0,0,.97) 66%, rgba(0,0,0,.87) 73%, rgba(0,0,0,.68) 81%, rgba(0,0,0,.44) 88%, rgba(0,0,0,.22) 95%, rgba(0,0,0,.08) 103%, transparent 110%);
+    will-change: transform; }
+  .field { position: absolute; border-radius: 50%; will-change: transform; background: radial-gradient(closest-side, rgb(var(--c)), rgba(var(--c),0)); }
+
+  /* Hex overlay (Paper "Hex overlay": blurred hexagon, overlay blend). Part of the background. */
+  .hex { position: absolute; width: 186px; height: 206px; mix-blend-mode: overlay; pointer-events: none; }
+  .hex svg { position: absolute; left: -100px; top: -100px; width: 386px; height: 406px; overflow: visible; display: block; }
+
+  /* ---------- Shared chrome ---------- */
+  .status { position: absolute; left: 0; top: 0; width: 402px; display: flex; align-items: center; gap: 154px; padding: 21px 24px 19px; }
+  .status > div { flex: 1 1 0%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .time { color: #fff; font: 600 17px/22px system-ui, sans-serif; text-align: center; }
+  .status svg { flex: none; display: block; }
+  .home { position: absolute; left: 128px; top: 860px; width: 146px; height: 5px; border-radius: 3px; background: #fff; }
+
+  /* ---------- Screens (content only; the background does not know about them) ---------- */
+  .screen { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity .35s ease; }
+  .screen.on { opacity: 1; pointer-events: auto; }
+  .abs { position: absolute; }
+  .inter { font-family: "Inter", system-ui, sans-serif; letter-spacing: .012em; }
+  /* Paper draws Inter (text cut); local static Inter 24pt is ~3% narrower, so tracking is opened by .012em to match Paper line widths. */
+  .h1 { margin: 0; color: #fff; font-weight: 600; font-size: 28px; line-height: 36px; }
+  .body { margin: 0; color: #fff; font-weight: 400; font-size: 16px; line-height: 19px; }
+  .step { color: #EBEBEB; font-weight: 600; font-size: 16px; line-height: 19px; opacity: .6; }
+  .tile { flex: none; width: 96px; height: 96px; border-radius: 32px; background: #3D3D3D; overflow: clip; display: flex; align-items: center; justify-content: center; }
+  .tile svg { display: block; flex: none; width: 52px; height: 44.8px; }
+  .slot { width: 112px; height: 112px; display: flex; align-items: center; justify-content: center; }
+  .btn { position: absolute; display: flex; align-items: center; justify-content: center; font-family: "Inter", system-ui, sans-serif; cursor: pointer; padding: 0; }
+  .primary { height: 50px; border-radius: 24px; background: #FAFAFA; border: 1px solid #000; color: #3D3D3D; font-weight: 600; font-size: 16px; line-height: 19px; letter-spacing: .005em; }
+  .primary:active { background: #ececec; }
+  .link { left: 20px; top: 791px; width: 362px; height: 48px; background: none; border: 0; color: #FAFAFA; font-size: 14px; line-height: 18px; letter-spacing: .012em; text-decoration: underline 1px; text-underline-position: from-font; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .row svg { flex: none; display: block; }
+
+  /* Screen 02 intro (artboard 01 splash -> 02). Only the content moves; the background is never touched. */
+  #s-take .logo-slot { transform: translateY(83px); transition: transform 1.2s cubic-bezier(.65,0,.25,1); }
+  #s-take .tile { background-color: rgba(61,61,61,0); transition: background-color .9s ease .35s; }
+  #s-take .copy, #s-take .btn { opacity: 0; }
+  #s-take .copy { transform: translateY(12px); transition: opacity .8s ease .7s, transform .9s cubic-bezier(.2,.7,.2,1) .7s; }
+  #s-take .btn { transition: opacity .8s ease 1s; }
+  .phone[data-stage="main"] #s-take .logo-slot { transform: none; }
+  .phone[data-stage="main"] #s-take .tile { background-color: #3D3D3D; }
+  .phone[data-stage="main"] #s-take .copy { opacity: 1; transform: none; }
+  .phone[data-stage="main"] #s-take .btn { opacity: 1; }
+  .phone[data-instant], .phone[data-instant] * { transition: none !important; }
+  .phone[data-bgonly] .screen, .phone[data-bgonly] .status, .phone[data-bgonly] .home { visibility: hidden; }  /* test hook */
+
+  /* ---------- Control panel (outside the phone, not part of the design) ---------- */
+  .panel { width: 236px; display: flex; flex-direction: column; gap: 20px; font-size: 13px; line-height: 18px; }
+  .panel h2 { margin: 0 0 8px; font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #8a8a8a; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button, .panel .act { font: 500 13px/18px "Inter", system-ui, sans-serif; color: #d8d8d8; background: transparent; cursor: pointer; border: 1px solid #3a3a3a; border-radius: 999px; padding: 6px 12px; }
+  .seg button:hover, .panel .act:hover { border-color: #6a6a6a; }
+  .seg button[aria-pressed="true"] { background: rgba(120,255,170,.14); border-color: #5fe39a; color: #fff; }
+  .panel p { margin: 8px 0 0; color: #8a8a8a; font-size: 12px; line-height: 16px; }
+  .panel button:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
+  .phase { margin-top: 10px; }
+  .track { position: relative; height: 22px; }
+  .track i { position: absolute; top: 9px; height: 4px; border-radius: 2px; left: 0; right: 0; background: linear-gradient(90deg, var(--g0), var(--g1), var(--g2), var(--g3), var(--g0)); opacity: .9; }
+  .track b { position: absolute; top: 3px; width: 2px; height: 16px; border-radius: 1px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5); margin-left: -1px; }
+  .ticks { display: flex; justify-content: space-between; font-size: 11px; line-height: 14px; color: #8a8a8a; margin-top: 2px; }
+  .readout { font-size: 12px; line-height: 16px; color: #d8d8d8; margin-top: 6px; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<main class="phone" id="phone" data-stage="splash" aria-label="Onboarding">
+  <!-- ONE background, behind every screen -->
+  <div class="glow" id="glow"><div class="glow-in" id="glowIn"></div></div>
+  <div class="hex" id="hex" aria-hidden="true">
+    <svg viewBox="0 0 386 406" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <g opacity="0.5" filter="url(#hexBlur)">
+        <path d="M175.55 106.635C181.907 103.001 185.085 101.183 188.465 100.472C191.455 99.8427 194.545 99.8427 197.535 100.472C200.915 101.183 204.093 103.001 210.45 106.635L268.55 139.852C274.907 143.487 278.085 145.304 280.397 147.847C282.443 150.096 283.988 152.746 284.932 155.625C286 158.879 286 162.514 286 169.783V236.217C286 243.486 286 247.121 284.932 250.375C283.988 253.254 282.443 255.904 280.397 258.153C278.085 260.696 274.907 262.513 268.55 266.148L210.45 299.365C204.093 302.999 200.915 304.817 197.535 305.528C194.545 306.157 191.455 306.157 188.465 305.528C185.085 304.817 181.907 302.999 175.55 299.365L117.45 266.148C111.093 262.513 107.915 260.696 105.603 258.153C103.557 255.904 102.012 253.254 101.068 250.375C100 247.121 100 243.486 100 236.217V169.783C100 162.514 100 158.879 101.068 155.625C102.012 152.746 103.557 150.096 105.603 147.847C107.915 145.304 111.093 143.487 117.45 139.852L175.55 106.635Z" fill="#FAFAFA"/>
+        <path d="M100 169.783V236.217C100 243.486 100 247.121 101.068 250.375C102.012 253.254 103.557 255.904 105.603 258.153C107.915 260.696 111.093 262.513 117.45 266.148L175.55 299.365C181.907 302.999 185.085 304.817 188.465 305.528C191.455 306.157 194.545 306.157 197.535 305.528C200.915 304.817 204.093 302.999 210.45 299.365L268.55 266.148C274.907 262.513 278.085 260.696 280.397 258.153C282.443 255.904 283.988 253.254 284.932 250.375C286 247.121 286 243.486 286 236.217V169.783C286 162.514 286 158.879 284.932 155.625C283.988 152.746 282.443 150.096 280.397 147.847C278.085 145.304 274.907 143.487 268.55 139.852L210.45 106.635C204.093 103.001 200.915 101.183 197.535 100.472C194.545 99.8427 191.455 99.8427 188.465 100.472C185.085 101.183 181.907 103.001 175.55 106.635L117.45 139.852C111.093 143.487 107.915 145.304 105.603 147.847C103.557 150.096 102.012 152.746 101.068 155.625C100 158.879 100 162.514 100 169.783Z" stroke-width="0.660538" stroke="url(#hexStroke)"/>
+      </g>
+      <defs>
+        <filter id="hexBlur" x="0" y="0" width="386" height="406" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="50"/></filter>
+        <linearGradient id="hexStroke" x1="193" y1="100" x2="193" y2="306" gradientUnits="userSpaceOnUse"><stop stop-color="white" stop-opacity="0.08"/><stop offset="1" stop-color="white" stop-opacity="0"/></linearGradient>
+      </defs>
+    </svg>
+  </div>
+
+  <div class="status" aria-hidden="true">
+    <div><div class="time">9:41</div></div>
+    <div>
+      <svg width="82" height="22" viewBox="0 0 82 22" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3.7 13H2.5a1 1 0 0 0-1 1v2.5a1 1 0 0 0 1 1h1.2a1 1 0 0 0 1-1V14a1 1 0 0 0-1-1m5.2-2.5H7.7a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h1.2a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1M14.1 8h-1.2a1 1 0 0 0-1 1v7.5a1 1 0 0 0 1 1h1.2a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1m5.2-2.5h-1.2a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1.2a1 1 0 0 0 1-1v-10a1 1 0 0 0-1-1" fill="#FFF"/>
+        <path fill-rule="evenodd" d="M36.57 7.8c2.49 0 4.88.92 6.68 2.58.14.13.36.12.49 0l1.3-1.27a.34.34 0 0 0 0-.5 12.55 12.55 0 0 0-16.93 0 .34.34 0 0 0 0 .5l1.3 1.26c.13.13.34.14.48 0a10 10 0 0 1 6.68-2.57m0 4.22a5.4 5.4 0 0 1 3.67 1.44c.14.13.35.13.48 0l1.3-1.33a.37.37 0 0 0-.01-.52 7.9 7.9 0 0 0-10.88 0 .37.37 0 0 0 0 .52l1.29 1.32c.13.14.34.14.48 0 1-.92 2.31-1.43 3.67-1.43m2.52 2.8q0 .15-.1.28l-2.18 2.45a.3.3 0 0 1-.24.11.3.3 0 0 1-.24-.1l-2.18-2.46a.43.43 0 0 1 .01-.56 3.44 3.44 0 0 1 4.82 0 .4.4 0 0 1 .11.28" clip-rule="evenodd" fill="#FFF"/>
+        <path fill-rule="evenodd" d="M70.5 5c2.05 0 3.08 0 3.88.34a4.3 4.3 0 0 1 2.28 2.28c.34.8.34 1.83.34 3.88s0 3.08-.34 3.88a4.3 4.3 0 0 1-2.28 2.28c-.8.34-1.83.34-3.88.34h-12c-2.05 0-3.08 0-3.88-.34a4.3 4.3 0 0 1-2.28-2.28c-.34-.8-.34-1.83-.34-3.88s0-3.08.34-3.88a4.3 4.3 0 0 1 2.28-2.28C55.42 5 56.45 5 58.5 5zM58.28 6c-1.85 0-2.77 0-3.48.36a3.3 3.3 0 0 0-1.44 1.44C53 8.5 53 9.43 53 11.28v.44c0 1.85 0 2.77.36 3.48a3.3 3.3 0 0 0 1.44 1.44c.7.36 1.63.36 3.48.36h12.44c1.85 0 2.77 0 3.48-.36a3.3 3.3 0 0 0 1.44-1.44c.36-.7.36-1.63.36-3.48v-.44c0-1.85 0-2.77-.36-3.48a3.3 3.3 0 0 0-1.44-1.44C73.5 6 72.57 6 70.72 6z" clip-rule="evenodd" fill="#FFF" opacity=".35"/>
+        <path d="M54 11c0-1.4 0-2.1.27-2.63a2.5 2.5 0 0 1 1.1-1.1C55.9 7 56.6 7 58 7h13c1.4 0 2.1 0 2.64.27q.72.37 1.09 1.1C75 8.9 75 9.6 75 11v1c0 1.4 0 2.1-.27 2.64a2.5 2.5 0 0 1-1.1 1.09C73.1 16 72.4 16 71 16H58c-1.4 0-2.1 0-2.63-.27a2.5 2.5 0 0 1-1.1-1.1C54 14.1 54 13.4 54 12z" fill="#FFF"/>
+        <path d="M78 9.5v4.08a2.2 2.2 0 0 0 1.33-2.04A2.2 2.2 0 0 0 78 9.5" fill="#FFF" opacity=".35"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Screen 02 "Take control of your identity" (Paper: Onboarding 02) -->
+  <section class="screen on" id="s-take" aria-label="Onboarding 02 - Take control">
+    <div class="abs" style="left:52px;top:298px;width:298px;display:flex;flex-direction:column;align-items:center;gap:40px">
+      <div class="slot logo-slot"><div class="tile"><svg viewBox="0 0 52.119 44.8002" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Valu"><path d="M3.64155 1.17799C7.26844 -1.08834 12.0461 0.0149692 14.3124 3.64186L26.0595 22.4417L27.0331 20.8821C26.9433 23.9624 28.4424 27.0073 31.2441 28.7581C34.0453 30.5083 37.4379 30.5201 40.1669 29.0901L32.6708 41.0882C32.3214 41.662 31.895 42.1959 31.3935 42.6712C30.9197 43.1218 30.3958 43.5034 29.8378 43.8147C29.803 43.8342 29.7674 43.8524 29.7324 43.8714C29.6588 43.9109 29.5854 43.9505 29.5107 43.9876C29.4416 44.0221 29.3714 44.0539 29.3017 44.0862C29.2623 44.1043 29.2233 44.1234 29.1835 44.1409C29.1004 44.1777 29.0165 44.2118 28.9326 44.2454C28.9026 44.2573 28.8728 44.2699 28.8427 44.2815C28.7391 44.3215 28.6348 44.3585 28.5302 44.3938C28.5233 44.3961 28.5166 44.3993 28.5097 44.4016C28.0434 44.5575 27.5684 44.6659 27.0908 44.7298C27.0775 44.7315 27.064 44.7339 27.0507 44.7356C26.9519 44.7483 26.8528 44.759 26.7539 44.7678C26.7204 44.7709 26.6867 44.7731 26.6533 44.7757C26.5736 44.7817 26.4937 44.7867 26.414 44.7903C26.3591 44.7929 26.304 44.7948 26.249 44.7962C26.1859 44.7976 26.1226 44.7982 26.0595 44.7981C25.9968 44.7982 25.9338 44.7976 25.871 44.7962C25.8154 44.7947 25.7596 44.7929 25.704 44.7903C25.6257 44.7868 25.5471 44.7826 25.4687 44.7766C25.4329 44.7739 25.397 44.7701 25.3613 44.7669C25.2653 44.7582 25.1691 44.7479 25.0732 44.7356C25.0567 44.7335 25.0399 44.731 25.0234 44.7288C24.5485 44.6649 24.0759 44.5575 23.6123 44.4026C23.6022 44.3993 23.592 44.3953 23.582 44.3919C23.4801 44.3573 23.3783 44.3205 23.2773 44.2815C23.2454 44.2692 23.2134 44.2561 23.1816 44.2434C23.102 44.2115 23.0222 44.1786 22.9433 44.1438C22.896 44.123 22.8487 44.1011 22.8017 44.0794C22.7377 44.0496 22.6728 44.0202 22.6093 43.9885C22.5199 43.9441 22.4315 43.8968 22.3437 43.8489C22.3266 43.8395 22.309 43.8301 22.2919 43.8206C22.1922 43.7651 22.0935 43.7067 21.996 43.6467C21.983 43.6387 21.969 43.6314 21.956 43.6233C21.9536 43.6218 21.9506 43.62 21.9482 43.6184C21.8542 43.5596 21.7615 43.4978 21.6699 43.4348C21.6528 43.4231 21.6351 43.4115 21.6181 43.3997C21.3056 43.181 21.0063 42.9383 20.7255 42.6712C20.2175 42.1895 19.7864 41.6473 19.4345 41.0647L1.17866 11.8489C-1.08763 8.22207 0.0148166 3.44438 3.64155 1.17799ZM48.4785 1.17799C48.5919 1.24888 48.7029 1.32211 48.8115 1.39772C48.7026 1.32205 48.5911 1.24899 48.4775 1.17799C48.4565 1.16491 48.435 1.15278 48.414 1.13991C48.4351 1.15284 48.4574 1.16484 48.4785 1.17799Z" fill="#fff"/><circle cx="26.5486" cy="13.6502" r="8.75" fill="#fff"/><path d="M37.8073 3.64166C40.0736 0.0147645 44.8513 -1.08854 48.4782 1.17779C52.1048 3.4442 53.2074 8.2219 50.9411 11.8487L42.5632 25.2559C40.2967 28.8824 35.52 29.985 31.8932 27.7188C30.1907 26.655 29.0444 25.0379 28.5417 23.2461C32.9981 22.3253 36.3482 18.3797 36.3483 13.6504C36.3483 11.722 35.7887 9.92534 34.8268 8.40924L37.8073 3.64166Z" fill="#fff"/></svg></div></div>
+      <div class="copy" style="width:298px;display:flex;flex-direction:column;align-items:center;gap:16px">
+        <h1 class="h1 inter" style="width:298px;text-align:center;white-space:nowrap">Take control of<br>your identity</h1>
+        <p class="body inter" style="width:298px;text-align:center;white-space:nowrap">Lets start with the creation of a<br>personal, locally stored profile</p>
+      </div>
+    </div>
+    <button class="btn primary" type="button" data-go="connect" style="left:20px;top:735px;width:362px">First time use</button>
+    <button class="btn link" type="button">Recover vault</button>
+  </section>
+
+  <!-- Screen 06 "Connect account" (Paper: Onboarding 06) -->
+  <section class="screen" id="s-connect" aria-label="Onboarding 06 - Connect account">
+    <div class="abs slot" style="left:145px;top:119px"><div class="tile"><svg viewBox="0 0 52.119 44.8002" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Valu"><path d="M3.64155 1.17799C7.26844 -1.08834 12.0461 0.0149692 14.3124 3.64186L26.0595 22.4417L27.0331 20.8821C26.9433 23.9624 28.4424 27.0073 31.2441 28.7581C34.0453 30.5083 37.4379 30.5201 40.1669 29.0901L32.6708 41.0882C32.3214 41.662 31.895 42.1959 31.3935 42.6712C30.9197 43.1218 30.3958 43.5034 29.8378 43.8147C29.803 43.8342 29.7674 43.8524 29.7324 43.8714C29.6588 43.9109 29.5854 43.9505 29.5107 43.9876C29.4416 44.0221 29.3714 44.0539 29.3017 44.0862C29.2623 44.1043 29.2233 44.1234 29.1835 44.1409C29.1004 44.1777 29.0165 44.2118 28.9326 44.2454C28.9026 44.2573 28.8728 44.2699 28.8427 44.2815C28.7391 44.3215 28.6348 44.3585 28.5302 44.3938C28.5233 44.3961 28.5166 44.3993 28.5097 44.4016C28.0434 44.5575 27.5684 44.6659 27.0908 44.7298C27.0775 44.7315 27.064 44.7339 27.0507 44.7356C26.9519 44.7483 26.8528 44.759 26.7539 44.7678C26.7204 44.7709 26.6867 44.7731 26.6533 44.7757C26.5736 44.7817 26.4937 44.7867 26.414 44.7903C26.3591 44.7929 26.304 44.7948 26.249 44.7962C26.1859 44.7976 26.1226 44.7982 26.0595 44.7981C25.9968 44.7982 25.9338 44.7976 25.871 44.7962C25.8154 44.7947 25.7596 44.7929 25.704 44.7903C25.6257 44.7868 25.5471 44.7826 25.4687 44.7766C25.4329 44.7739 25.397 44.7701 25.3613 44.7669C25.2653 44.7582 25.1691 44.7479 25.0732 44.7356C25.0567 44.7335 25.0399 44.731 25.0234 44.7288C24.5485 44.6649 24.0759 44.5575 23.6123 44.4026C23.6022 44.3993 23.592 44.3953 23.582 44.3919C23.4801 44.3573 23.3783 44.3205 23.2773 44.2815C23.2454 44.2692 23.2134 44.2561 23.1816 44.2434C23.102 44.2115 23.0222 44.1786 22.9433 44.1438C22.896 44.123 22.8487 44.1011 22.8017 44.0794C22.7377 44.0496 22.6728 44.0202 22.6093 43.9885C22.5199 43.9441 22.4315 43.8968 22.3437 43.8489C22.3266 43.8395 22.309 43.8301 22.2919 43.8206C22.1922 43.7651 22.0935 43.7067 21.996 43.6467C21.983 43.6387 21.969 43.6314 21.956 43.6233C21.9536 43.6218 21.9506 43.62 21.9482 43.6184C21.8542 43.5596 21.7615 43.4978 21.6699 43.4348C21.6528 43.4231 21.6351 43.4115 21.6181 43.3997C21.3056 43.181 21.0063 42.9383 20.7255 42.6712C20.2175 42.1895 19.7864 41.6473 19.4345 41.0647L1.17866 11.8489C-1.08763 8.22207 0.0148166 3.44438 3.64155 1.17799ZM48.4785 1.17799C48.5919 1.24888 48.7029 1.32211 48.8115 1.39772C48.7026 1.32205 48.5911 1.24899 48.4775 1.17799C48.4565 1.16491 48.435 1.15278 48.414 1.13991C48.4351 1.15284 48.4574 1.16484 48.4785 1.17799Z" fill="#fff"/><circle cx="26.5486" cy="13.6502" r="8.75" fill="#fff"/><path d="M37.8073 3.64166C40.0736 0.0147645 44.8513 -1.08854 48.4782 1.17779C52.1048 3.4442 53.2074 8.2219 50.9411 11.8487L42.5632 25.2559C40.2967 28.8824 35.52 29.985 31.8932 27.7188C30.1907 26.655 29.0444 25.0379 28.5417 23.2461C32.9981 22.3253 36.3482 18.3797 36.3483 13.6504C36.3483 11.722 35.7887 9.92534 34.8268 8.40924L37.8073 3.64166Z" fill="#fff"/></svg></div></div>
+    <div class="abs row" style="left:36px;top:405px">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><g opacity=".6"><path d="M4.66667 8.33333L6.66667 10.3333L11.3333 5.66667" stroke="#EBEBEB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 14.6667C11.6819 14.6667 14.6667 11.6819 14.6667 8C14.6667 4.3181 11.6819 1.33333 8 1.33333C4.3181 1.33333 1.33333 4.3181 1.33333 8C1.33333 11.6819 4.3181 14.6667 8 14.6667Z" stroke="#EBEBEB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+      <div class="step inter">Device key</div>
+    </div>
+    <div class="abs" style="left:36px;top:464px;width:342px;display:flex;flex-direction:column;gap:16px">
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style="display:block"><path d="M1 38.0333V10.9667C1 10.4328 1.43279 10 1.96667 10H29.0333C29.5673 10 30 10.4328 30 10.9667V38.0333C30 38.5673 29.5673 39 29.0333 39H1.96667C1.43279 39 1 38.5673 1 38.0333Z" stroke="#FFD56F" stroke-width="2"/><path d="M6.40039 33.6016H25.6004" stroke="#FFD56F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16.0004 27.1984V14.3984M10.4004 19.9984L16.0004 14.3984L21.6004 19.9984" stroke="#FFD56F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div style="display:flex;flex-direction:column;gap:8px;width:342px">
+        <div class="h1 inter">Connect account</div>
+        <div class="body inter" style="color:#EBEBEB;width:319px;white-space:nowrap">Take full ownership of your account<br>across all of the Valu Verse</div>
+      </div>
+    </div>
+    <div class="abs step inter" style="left:36px;top:650px">Accept credentials</div>
+    <button class="btn primary" type="button" data-go="accept" style="left:36px;top:791px;width:330px">Yes, lets go</button>
+  </section>
+
+  <!-- Screen 09 "Accept credentials" (Paper: Onboarding 09) -->
+  <section class="screen" id="s-accept" aria-label="Onboarding 09 - Accept credentials">
+    <div class="abs slot" style="left:145px;top:119px"><div class="tile"><svg viewBox="0 0 52.119 44.8002" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Valu"><path d="M3.64155 1.17799C7.26844 -1.08834 12.0461 0.0149692 14.3124 3.64186L26.0595 22.4417L27.0331 20.8821C26.9433 23.9624 28.4424 27.0073 31.2441 28.7581C34.0453 30.5083 37.4379 30.5201 40.1669 29.0901L32.6708 41.0882C32.3214 41.662 31.895 42.1959 31.3935 42.6712C30.9197 43.1218 30.3958 43.5034 29.8378 43.8147C29.803 43.8342 29.7674 43.8524 29.7324 43.8714C29.6588 43.9109 29.5854 43.9505 29.5107 43.9876C29.4416 44.0221 29.3714 44.0539 29.3017 44.0862C29.2623 44.1043 29.2233 44.1234 29.1835 44.1409C29.1004 44.1777 29.0165 44.2118 28.9326 44.2454C28.9026 44.2573 28.8728 44.2699 28.8427 44.2815C28.7391 44.3215 28.6348 44.3585 28.5302 44.3938C28.5233 44.3961 28.5166 44.3993 28.5097 44.4016C28.0434 44.5575 27.5684 44.6659 27.0908 44.7298C27.0775 44.7315 27.064 44.7339 27.0507 44.7356C26.9519 44.7483 26.8528 44.759 26.7539 44.7678C26.7204 44.7709 26.6867 44.7731 26.6533 44.7757C26.5736 44.7817 26.4937 44.7867 26.414 44.7903C26.3591 44.7929 26.304 44.7948 26.249 44.7962C26.1859 44.7976 26.1226 44.7982 26.0595 44.7981C25.9968 44.7982 25.9338 44.7976 25.871 44.7962C25.8154 44.7947 25.7596 44.7929 25.704 44.7903C25.6257 44.7868 25.5471 44.7826 25.4687 44.7766C25.4329 44.7739 25.397 44.7701 25.3613 44.7669C25.2653 44.7582 25.1691 44.7479 25.0732 44.7356C25.0567 44.7335 25.0399 44.731 25.0234 44.7288C24.5485 44.6649 24.0759 44.5575 23.6123 44.4026C23.6022 44.3993 23.592 44.3953 23.582 44.3919C23.4801 44.3573 23.3783 44.3205 23.2773 44.2815C23.2454 44.2692 23.2134 44.2561 23.1816 44.2434C23.102 44.2115 23.0222 44.1786 22.9433 44.1438C22.896 44.123 22.8487 44.1011 22.8017 44.0794C22.7377 44.0496 22.6728 44.0202 22.6093 43.9885C22.5199 43.9441 22.4315 43.8968 22.3437 43.8489C22.3266 43.8395 22.309 43.8301 22.2919 43.8206C22.1922 43.7651 22.0935 43.7067 21.996 43.6467C21.983 43.6387 21.969 43.6314 21.956 43.6233C21.9536 43.6218 21.9506 43.62 21.9482 43.6184C21.8542 43.5596 21.7615 43.4978 21.6699 43.4348C21.6528 43.4231 21.6351 43.4115 21.6181 43.3997C21.3056 43.181 21.0063 42.9383 20.7255 42.6712C20.2175 42.1895 19.7864 41.6473 19.4345 41.0647L1.17866 11.8489C-1.08763 8.22207 0.0148166 3.44438 3.64155 1.17799ZM48.4785 1.17799C48.5919 1.24888 48.7029 1.32211 48.8115 1.39772C48.7026 1.32205 48.5911 1.24899 48.4775 1.17799C48.4565 1.16491 48.435 1.15278 48.414 1.13991C48.4351 1.15284 48.4574 1.16484 48.4785 1.17799Z" fill="#fff"/><circle cx="26.5486" cy="13.6502" r="8.75" fill="#fff"/><path d="M37.8073 3.64166C40.0736 0.0147645 44.8513 -1.08854 48.4782 1.17779C52.1048 3.4442 53.2074 8.2219 50.9411 11.8487L42.5632 25.2559C40.2967 28.8824 35.52 29.985 31.8932 27.7188C30.1907 26.655 29.0444 25.0379 28.5417 23.2461C32.9981 22.3253 36.3482 18.3797 36.3483 13.6504C36.3483 11.722 35.7887 9.92534 34.8268 8.40924L37.8073 3.64166Z" fill="#fff"/></svg></div></div>
+    <div class="abs" style="left:36px;top:370px;width:298px;display:flex;flex-direction:column;gap:16px">
+      <div class="row"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><g opacity=".6"><path d="M4.66667 8.33333L6.66667 10.3333L11.3333 5.66667" stroke="#EBEBEB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 14.6667C11.6819 14.6667 14.6667 11.6819 14.6667 8C14.6667 4.3181 11.6819 1.33333 8 1.33333C4.3181 1.33333 1.33333 4.3181 1.33333 8C1.33333 11.6819 4.3181 14.6667 8 14.6667Z" stroke="#EBEBEB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg><div class="step inter">Device key</div></div>
+      <div class="row"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><g opacity=".6"><path d="M4.66667 8.33333L6.66667 10.3333L11.3333 5.66667" stroke="#EBEBEB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 14.6667C11.6819 14.6667 14.6667 11.6819 14.6667 8C14.6667 4.3181 11.6819 1.33333 8 1.33333C4.3181 1.33333 1.33333 4.3181 1.33333 8C1.33333 11.6819 4.3181 14.6667 8 14.6667Z" stroke="#EBEBEB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg><div class="step inter">Connect account</div></div>
+    </div>
+    <div class="abs" style="left:36px;top:464px;width:330px;display:flex;flex-direction:column;gap:16px">
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style="display:block"><path d="M1 32V16C1 10.4772 5.47716 6 11 6H27C32.5228 6 37 10.4772 37 16V32C37 37.5228 32.5228 42 27 42H11C5.47716 42 1 37.5228 1 32Z" stroke="#42DF5E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M28 29C28 29 25 33 19 33C13 33 10 29 10 29" stroke="#42DF5E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 20C11.4477 20 11 19.5523 11 19C11 18.4477 11.4477 18 12 18C12.5523 18 13 18.4477 13 19C13 19.5523 12.5523 20 12 20Z" stroke="#42DF5E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 20C25.4478 20 25 19.5523 25 19C25 18.4477 25.4478 18 26 18C26.5522 18 27 18.4477 27 19C27 19.5523 26.5522 20 26 20Z" stroke="#42DF5E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div style="display:flex;flex-direction:column;gap:8px;width:330px">
+        <div class="body inter" style="font-weight:600">Accept credentials</div>
+        <div class="h1 inter" style="white-space:pre">firstname_lastname<span style="color:#737373">.</span><span style="color:#737373;font-size:16px">valuid@</span></div>
+        <div class="body inter" style="color:#EBEBEB;width:313px;white-space:nowrap">Your Valu Verse account is now<br>connected with this device. Are you<br>ready to accept your credentials?</div>
+      </div>
+    </div>
+    <button class="btn primary" type="button" data-go="take" style="left:36px;top:791px;width:330px">Accept</button>
+  </section>
+
+  <div class="home"></div>
+</main>
+
+<aside class="panel" aria-label="Mockup controls (not part of the design)">
+  <div>
+    <h2>Screen (content only)</h2>
+    <div class="seg" id="screenSeg" role="group" aria-label="Screen">
+      <button type="button" data-s="take" aria-pressed="true">02 Take control</button>
+      <button type="button" data-s="connect" aria-pressed="false">06 Connect</button>
+      <button type="button" data-s="accept" aria-pressed="false">09 Accept</button>
+    </div>
+    <p>The background does not change when you change screen. The phone buttons step through the same screens.</p>
+  </div>
+  <div>
+    <h2>Time</h2>
+    <div class="seg" id="speedSeg" role="group" aria-label="Speed">
+      <button type="button" data-k="1" aria-pressed="true">1x</button>
+      <button type="button" data-k="8" aria-pressed="false">8x</button>
+      <button type="button" data-k="24" aria-pressed="false">24x</button>
+    </div>
+    <div class="phase">
+      <div class="track" id="track"><i></i><b id="marker"></b></div>
+      <div class="ticks"><span>02</span><span>06</span><span>09</span><span>04</span><span>02</span></div>
+      <div class="readout" id="readout"></div>
+    </div>
+    <p>One cycle: 180 s at 1x (22 s at 8x, 7.5 s at 24x). The bar shows the colour phase.</p>
+  </div>
+  <div>
+    <h2>Field motion style</h2>
+    <div class="seg" id="motionSeg" role="group" aria-label="Motion style">
+      <button type="button" data-v="drift" aria-pressed="true">Slow drift</button>
+      <button type="button" data-v="breathe" aria-pressed="false">Breathing</button>
+      <button type="button" data-v="flow" aria-pressed="false">Flowing</button>
+      <button type="button" data-v="still" aria-pressed="false">Colour only</button>
+    </div>
+    <p id="motionNote"></p>
+  </div>
+  <div>
+    <h2>Intro</h2>
+    <button type="button" class="act" id="replay">Replay splash to screen 02</button>
+  </div>
+  <p id="rmNote" hidden>Reduced motion is on: the background stays a still image (screen 02 colours) and the intro is skipped.</p>
+</aside>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s), $$ = (s) => [...document.querySelectorAll(s)];
+  const phone = $('#phone'), glow = $('#glow'), glowIn = $('#glowIn'), hexEl = $('#hex');
+
+  /* ---- Data (fitted to the Paper PNG fills): 11 shared fields [x, y, rx, ry] in the 614 x 699 glow box, and 4 colour sets.
+         set = colour of each field + base, glow centre and hex overlay position taken from the Paper artboards. ---- */
+  const DATA = {"fields":[[228.3,220.3,141.4,270.7],[155.1,367.4,212.2,160.2],[344.2,170,171.8,205.7],[448.4,412.2,179.4,225.4],[241.4,533.9,428.2,213.3],[422.7,249.7,148.6,133.6],[48.9,463.6,313.3,310.2],[455.2,101.5,146.6,249.5],[118.2,168.9,161.7,119.4],[469.9,320.5,125.8,135.8],[134.2,242.2,195.2,172.2]],"sets":[{"id":"take","centre":[153,79],"hex":[117,162],"base":[77,240,168],"cols":[[139,157,255],[10,205,255],[188,255,207],[66,255,110],[48,229,183],[140,255,175],[32,204,255],[132,255,163],[110,166,255],[78,252,134],[53,178,255]]},{"id":"connect","centre":[226,60],"hex":[134,45],"base":[123,246,125],"cols":[[255,214,161],[255,230,48],[188,255,209],[48,255,127],[143,241,98],[138,255,178],[229,231,74],[124,255,171],[255,215,138],[80,252,132],[252,218,86]]},{"id":"accept","centre":[139,79],"hex":[13,56],"base":[102,245,136],"cols":[[206,255,219],[28,247,101],[163,250,201],[156,252,149],[113,252,137],[0,191,96],[71,253,129],[0,194,96],[148,254,184],[126,242,141],[106,255,152]]},{"id":"device","centre":[139,79],"hex":[176,160],"base":[53,209,238],"cols":[[208,255,196],[46,253,100],[186,255,199],[27,202,255],[47,226,188],[83,160,255],[70,255,124],[76,161,255],[150,255,190],[37,198,255],[105,255,148]]}]};
+  const NAMES = ['02', '06', '09', '04'];   // cycle order: 02 -> 06 -> 09 -> 04 -> back to 02
+  const SEG = 45, CYCLE = SEG * 4;          // seconds per colour set / per full cycle at 1x
+  const DWELL = 0.15;                       // share of each segment spent (almost) on a set before the blend starts
+  const TAU = Math.PI * 2, BOX_C = [307, 349.5];
+
+  /* ---- OKLCH mixing, so blue -> yellow passes through cyan and green instead of grey ---- */
+  const lin = (c) => { c /= 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; };
+  const unlin = (c) => 255 * (c <= .0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - .055);
+  function toLCh([r, g, b]) {
+    const R = lin(r), G = lin(g), B = lin(b);
+    const l = Math.cbrt(.4122214708 * R + .5363325363 * G + .0514459929 * B), m = Math.cbrt(.2119034982 * R + .6806995451 * G + .1073969566 * B), s = Math.cbrt(.0883024619 * R + .2817188376 * G + .6299787005 * B);
+    const L = .2104542553 * l + .793617785 * m - .0040720468 * s, a = 1.9779984951 * l - 2.428592205 * m + .4505937099 * s, bb = .0259040371 * l + .7827717662 * m - .808675766 * s;
+    return [L, Math.hypot(a, bb), Math.atan2(bb, a), a, bb];
+  }
+  function fromLab(L, a, b) {
+    const l = (L + .3963377774 * a + .2158037573 * b) ** 3, m = (L - .1055613458 * a - .0638541728 * b) ** 3, s = (L - .0894841775 * a - 1.291485548 * b) ** 3;
+    return [4.0767416621 * l - 3.3077115913 * m + .2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - .3413193965 * s, -.0041960863 * l - .7034186147 * m + 1.707614701 * s]
+      .map((v) => Math.max(0, Math.min(255, unlin(Math.max(0, v)))));
+  }
+  function mix(A, B, e) { // A, B = toLCh results
+    if (Math.min(A[1], B[1]) < .04) return fromLab(A[0] + (B[0] - A[0]) * e, A[3] + (B[3] - A[3]) * e, A[4] + (B[4] - A[4]) * e);
+    let dh = B[2] - A[2]; if (dh > Math.PI) dh -= TAU; if (dh < -Math.PI) dh += TAU;
+    const L = A[0] + (B[0] - A[0]) * e, C = A[1] + (B[1] - A[1]) * e, h = A[2] + dh * e;
+    return fromLab(L, C * Math.cos(h), C * Math.sin(h));
+  }
+  const SETS = DATA.sets.map((s) => ({ ...s, lch: [s.base, ...s.cols].map(toLCh) }));
+
+  /* ---- Build the ONE background: the fields never change count or order, only colour, position and size ---- */
+  const fieldEls = DATA.fields.map(([x, y, rx, ry]) => {
+    const d = document.createElement('div'); d.className = 'field';
+    d.style.cssText = `left:${x - rx}px;top:${y - ry}px;width:${rx * 2}px;height:${ry * 2}px`;
+    glowIn.appendChild(d); return d;
+  });
+
+  /* ---- Field motion styles (speeds / styles of the ONE background). Periods are whole fractions of the 180 s cycle. ---- */
+  const DRIFT = [ // amplitude px, period = CYCLE / k, phase
+    { ax: 34, ay: 26, kx: 6, ky: 5, f: 0.0 }, { ax: 30, ay: 36, kx: 4, ky: 5, f: 1.7 }, { ax: 38, ay: 30, kx: 5, ky: 4, f: 3.1 },
+    { ax: 32, ay: 34, kx: 4, ky: 6, f: 4.4 }, { ax: 44, ay: 20, kx: 3, ky: 4, f: 2.2 }, { ax: 28, ay: 26, kx: 5, ky: 3, f: 5.3 },
+    { ax: 26, ay: 32, kx: 4, ky: 5, f: 0.9 }, { ax: 30, ay: 28, kx: 6, ky: 4, f: 2.7 }, { ax: 28, ay: 30, kx: 5, ky: 6, f: 3.9 },
+    { ax: 34, ay: 24, kx: 3, ky: 5, f: 1.1 }, { ax: 26, ay: 30, kx: 4, ky: 3, f: 4.9 }
+  ];
+  const VARIANTS = {
+    drift: (i, t) => { const d = DRIFT[i % DRIFT.length]; return { dx: d.ax * Math.sin(TAU * d.kx * t / CYCLE + d.f), dy: d.ay * Math.sin(TAU * d.ky * t / CYCLE + d.f * 1.3), rot: 0, scale: 0, group: 0 }; },
+    breathe: (i, t) => { const P = CYCLE / 20, s = Math.sin(TAU * t / P + i * 0.85); return { dx: 0, dy: 0, rot: 0, scale: 0.13 * s, group: i === 0 ? 0.035 * Math.sin(TAU * t / P - 0.6) : 0 }; },
+    flow: (i, t) => ({ dx: 0, dy: 0, rot: 15 * Math.sin(TAU * t / (CYCLE / 4) - i * 0.62), scale: 0, group: 0, orbit: true }),
+    still: () => ({ dx: 0, dy: 0, rot: 0, scale: 0, group: 0 })
+  };
+  const weights = { drift: 1, breathe: 0, flow: 0, still: 0 };
+  let target = 'drift';
+
+  /* ---- Colour phase: a pure function of time. p in [0,4): set i = floor(p), blend towards set i+1. ---- */
+  const smooth = (x) => x * x * (3 - 2 * x);
+  function phaseOf(t) {
+    const p = (((t / SEG) % 4) + 4) % 4, i = Math.floor(p), f = p - i;
+    const e = smooth(Math.min(1, Math.max(0, (f - DWELL) / (1 - 2 * DWELL))));
+    return { p, i, j: (i + 1) % 4, e };
+  }
+
+  function render(t, still) {
+    const { p, i, j, e: e0 } = phaseOf(still ? 0 : t), e = still ? 0 : e0;
+    const A = SETS[i], B = SETS[j];
+    // colour, glow position and hex position all move on the same eased phase
+    fieldEls.forEach((el, k) => {
+      const c = mix(A.lch[k + 1], B.lch[k + 1], e);
+      el.style.setProperty('--c', `${c[0] | 0},${c[1] | 0},${c[2] | 0}`);
+    });
+    const base = mix(A.lch[0], B.lch[0], e); glowIn.style.setProperty('--base', `${base[0] | 0},${base[1] | 0},${base[2] | 0}`);
+    const cx = A.centre[0] + (B.centre[0] - A.centre[0]) * e, cy = A.centre[1] + (B.centre[1] - A.centre[1]) * e;
+    glow.style.left = (cx - 307) + 'px'; glow.style.top = (cy - 349.5) + 'px';
+    hexEl.style.left = (A.hex[0] + (B.hex[0] - A.hex[0]) * e) + 'px'; hexEl.style.top = (A.hex[1] + (B.hex[1] - A.hex[1]) * e) + 'px';
+    // field motion on top of the colour phase
+    let g = 0;
+    fieldEls.forEach((el, k) => {
+      let dx = 0, dy = 0, rot = 0, sc = 0;
+      if (!still) for (const v in weights) {
+        const w = weights[v]; if (w < 0.001) continue;
+        const o = VARIANTS[v](k, t);
+        if (o.orbit) {
+          const th = o.rot * Math.PI / 180 * w, [x, y] = DATA.fields[k];
+          dx += (x - BOX_C[0]) * (Math.cos(th) - 1) - (y - BOX_C[1]) * Math.sin(th);
+          dy += (x - BOX_C[0]) * Math.sin(th) + (y - BOX_C[1]) * (Math.cos(th) - 1);
+          rot += o.rot * w;
+        } else { dx += o.dx * w; dy += o.dy * w; }
+        sc += o.scale * w; if (k === 0) g += o.group * w;
+      }
+      el.style.transform = `translate3d(${dx.toFixed(2)}px,${dy.toFixed(2)}px,0) rotate(${rot.toFixed(3)}deg) scale(${(1 + sc).toFixed(4)})`;
+    });
+    glowIn.style.transform = `scale(${(1 + g).toFixed(4)})`;
+    updateReadout(p, i, j, e, t);
+  }
+
+  /* ---- Clock: virtual time vt (s) advances by dt * speed. Speed eases, so 1x <-> 8x never jumps. ---- */
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  let vt = 0, speed = 1, speedTarget = 1, fixedT = null, last = performance.now(), raf = 0, tick = 0;
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    speed += (speedTarget - speed) * (1 - Math.exp(-dt / 0.35));
+    vt += dt * speed;
+    const k = 1 - Math.exp(-dt / 0.9);
+    for (const v in weights) weights[v] += ((v === target ? 1 : 0) - weights[v]) * k;
+    render(fixedT ?? vt, false);
+    raf = requestAnimationFrame(frame);
+  }
+  function applyMotionPreference() {
+    cancelAnimationFrame(raf);
+    $('#rmNote').hidden = !reduce.matches;
+    if (reduce.matches) render(0, true);
+    else { last = performance.now(); raf = requestAnimationFrame(frame); }
+  }
+
+  /* ---- Readout (outside the phone) ---- */
+  const marker = $('#marker'), readout = $('#readout'), track = $('#track');
+  track.style.setProperty('--g0', `rgb(${SETS[0].cols[1]})`); track.style.setProperty('--g1', `rgb(${SETS[1].cols[1]})`);
+  track.style.setProperty('--g2', `rgb(${SETS[2].cols[1]})`); track.style.setProperty('--g3', `rgb(${SETS[3].cols[1]})`);
+  function updateReadout(p, i, j, e, t) {
+    marker.style.left = (reduce.matches ? 0 : (p / 4 * 100)) + '%';
+    const pct = Math.round(e * 100);
+    readout.textContent = (pct <= 2 ? `${NAMES[i]} colours` : pct >= 98 ? `${NAMES[j]} colours` : `${NAMES[i]} to ${NAMES[j]}, ${pct}%`) + `  -  t ${(((t % CYCLE) + CYCLE) % CYCLE).toFixed(0)} s of ${CYCLE}`;
+  }
+
+  /* ---- Screens: content only. The background is not touched here. ---- */
+  const screens = { take: $('#s-take'), connect: $('#s-connect'), accept: $('#s-accept') };
+  function showScreen(id) {
+    for (const k in screens) screens[k].classList.toggle('on', k === id);
+    $$('#screenSeg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.s === id)));
+  }
+  $('#screenSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { clearTimeout(introTimer); phone.dataset.stage = 'main'; showScreen(b.dataset.s); } });
+  $$('[data-go]').forEach((b) => b.addEventListener('click', () => { clearTimeout(introTimer); phone.dataset.stage = 'main'; showScreen(b.dataset.go); }));
+
+  /* ---- Intro: splash (artboard 01) -> 02. Content only; the glow just fades in the first time. ---- */
+  let introTimer = 0;
+  function playIntro(skip) {
+    clearTimeout(introTimer);
+    phone.toggleAttribute('data-instant', true);
+    showScreen('take');
+    phone.dataset.stage = skip ? 'main' : 'splash';
+    phone.dataset.glow = skip ? 'on' : 'off';
+    void phone.offsetWidth;
+    phone.toggleAttribute('data-instant', false);
+    if (!skip) introTimer = setTimeout(() => { phone.dataset.stage = 'main'; phone.dataset.glow = 'on'; }, 1300);
+  }
+
+  /* ---- Controls ---- */
+  const NOTES = { drift: 'Colour fields wander on slow, offset loops.', breathe: 'Fields swell in a slow wave; the glow takes a shallow breath.', flow: 'Fields swing about the centre in a travelling wave.', still: 'Fields keep their place; only the colours move.' };
+  function setMotion(v) { target = v; $$('#motionSeg button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.v === v))); $('#motionNote').textContent = NOTES[v]; }
+  $('#motionSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setMotion(b.dataset.v); });
+  $('#speedSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; speedTarget = +b.dataset.k; $$('#speedSeg button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); });
+  $('#replay').addEventListener('click', () => playIntro(reduce.matches));
+  reduce.addEventListener('change', applyMotionPreference);
+
+  /* ---- Test hooks (screenshots): #t=95&v=flow&s=accept&intro=0&bg=1&k=8 ---- */
+  const h = new URLSearchParams(location.hash.slice(1));
+  setMotion(h.get('v') && VARIANTS[h.get('v')] ? h.get('v') : 'drift');
+  if (h.get('v') && VARIANTS[h.get('v')]) for (const v in weights) weights[v] = v === target ? 1 : 0;
+  if (h.has('t')) fixedT = parseFloat(h.get('t'));
+  if (h.has('bg')) phone.toggleAttribute('data-bgonly', true);
+  window.__setT = (t) => { fixedT = t; render(t, false); };
+  window.__go = (id) => showScreen(id);
+  render(fixedT ?? 0, reduce.matches);
+  playIntro(reduce.matches || h.get('intro') === '0');
+  if (h.get('s') && screens[h.get('s')]) showScreen(h.get('s'));
+  applyMotionPreference();
+})();
+</script>
+</body>
+</html>
