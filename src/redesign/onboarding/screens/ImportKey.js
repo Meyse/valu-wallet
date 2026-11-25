@@ -83,6 +83,10 @@ export default function ImportKey({navigation}) {
                   if (key.length > 0) setChecked(true);
                 }}
                 multiline
+                // A key has no line breaks: Done closes the keyboard and checks the key.
+                submitBehavior="blurAndSubmit"
+                returnKeyType="done"
+                onSubmitEditing={() => key.length > 0 && setChecked(true)}
                 autoCapitalize="none"
                 selectionColor={colors.accent}
                 cursorColor={colors.accent}

@@ -15,6 +15,19 @@ export default function RecoveryPhrase({navigation, route}) {
   const pages = Math.max(1, Math.ceil(words.length / PER_PAGE));
   const [page, setPage] = useState(route?.params?.page ?? 0);
   const scroll = useRef(null);
+  const pageRef = useRef(page);
+  pageRef.current = page;
+
+  // Android Back and the iOS swipe go to the previous page first, as the Back button does.
+  useEffect(
+    () =>
+      navigation.addListener('beforeRemove', e => {
+        if (pageRef.current === 0 || e.data.action.type !== 'GO_BACK') return;
+        e.preventDefault();
+        setPage(pageRef.current - 1);
+      }),
+    [navigation],
+  );
 
   // "Show words again" on R13 comes back to page 1.
   useEffect(() => {

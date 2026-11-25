@@ -1,7 +1,7 @@
 // New Home (R16, with the team's Crypto "Total Balance" block from Paper p-1-0).
 // First run: the welcome card (R16). After "Dismiss": the balance of this wallet, from the same
 // redux data and refresh calls as the old Home. Activity shows how this wallet was made.
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Platform, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -17,7 +17,7 @@ import {extractDisplaySubWallets} from '../../utils/subwallet/extractSubWallets'
 import GlassSurface from '../components/GlassSurface';
 import Icon from '../components/Icon';
 import ValuButton from '../components/ValuButton';
-import Sheet from '../components/Sheet';
+import Sheet, {BackdropSourceContext} from '../components/Sheet';
 import {formatCrypto, formatFiat, rateFor, summarizeBalances} from '../logic/balances';
 import {dismissWelcome, readWelcome, timeAgo} from '../state/welcomeState';
 import {colors, type} from '../theme/tokens';
@@ -74,6 +74,7 @@ export default function HomeScreen({navigation}) {
   const store = useStore();
   const [welcome, setWelcome] = useState(undefined); // undefined while loading
   const [scanInfo, setScanInfo] = useState(false);
+  const root = useRef(null);
 
   const accountHash = useSelector(state => state.authentication.activeAccount?.accountHash);
   const coins = useObjectSelector(state => state.coins.activeCoinsForUser);
@@ -118,7 +119,8 @@ export default function HomeScreen({navigation}) {
   };
 
   return (
-    <View style={styles.root}>
+    <BackdropSourceContext.Provider value={root}>
+    <View ref={root} collapsable={false} style={styles.root}>
       <ScrollView
         contentContainerStyle={{paddingTop: insets.top + 8, paddingBottom: TAB_BAR_CLEARANCE + insets.bottom}}
         showsVerticalScrollIndicator={false}>
@@ -211,6 +213,7 @@ export default function HomeScreen({navigation}) {
         buttons={[{label: 'Close', onPress: () => setScanInfo(false), testID: 'home-scan-close'}]}
       />
     </View>
+    </BackdropSourceContext.Provider>
   );
 }
 

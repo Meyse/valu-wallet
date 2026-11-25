@@ -143,7 +143,7 @@ export default function ReturningUser({navigation}) {
       <StatusBar barStyle="light-content" />
       <View ref={root} collapsable={false} style={styles.root}>
         <OnboardingBackground lift={background.lift} opacity={background.opacity} />
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.flex} behavior="padding">
           <ScrollView
             contentContainerStyle={[styles.scroll, {paddingTop: top + 57, paddingBottom: bottomGap}]}
             keyboardShouldPersistTaps="handled">

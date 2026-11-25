@@ -1,5 +1,6 @@
 // R02 Welcome, entered from the R01 splash: the logo moves up into its tile, the copy and
 // the buttons fade in, and the shared background fades in (mockup intro).
+// Copy: the team artboard "Onboarding 02 - Take control" (Paper p-1-0), verbatim, as Max asked.
 import React, {useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import Animated, {
@@ -23,7 +24,9 @@ export default function Welcome({navigation}) {
   const reduce = useReducedMotion();
   const bottomGap = useBottomGap();
   const column = useColumnWidth();
-  const play = !introPlayed && !reduce;
+  // Fixed for the life of the screen: a re-render after the intro started must not detach the
+  // animated styles (the copy then kept the opacity it had at that moment, often 0).
+  const [play] = useState(() => !introPlayed && !reduce);
   const p = useSharedValue(play ? 0 : 1);
   const [testSheet, setTestSheet] = useState(false);
   const taps = useRef(0);
@@ -72,23 +75,23 @@ export default function Welcome({navigation}) {
       <View style={styles.center}>
         <View style={[styles.group, {width: Math.min(298, column)}]}>
           <Animated.View style={logoStyle}>
-            <LogoTile onPress={onLogoTap} tileStyle={play ? tileStyle : null} />
+            <LogoTile onPress={onLogoTap} tileStyle={tileStyle} />
           </Animated.View>
-          <Animated.View style={[styles.copy, play ? copyStyle : null]}>
+          <Animated.View style={[styles.copy, copyStyle]}>
             <Text style={[type.title, styles.title]} accessibilityRole="header">
-              {'Your keys,\nyour wallet'}
+              {'Take control of\nyour identity'}
             </Text>
             <Text style={[type.bodyLarge, styles.body]}>
-              Valu Wallet keeps your keys on this phone. Only you can move your funds.
+              Lets start with the creation of a personal, locally stored profile
             </Text>
             {ob.testProfile ? <Text style={[type.body, styles.test]}>Testnet wallet</Text> : null}
           </Animated.View>
         </View>
       </View>
-      <Animated.View style={[styles.actions, {paddingBottom: bottomGap - 8}, play ? buttonStyle : null]}>
+      <Animated.View style={[styles.actions, {paddingBottom: bottomGap - 8}, buttonStyle]}>
         <View style={{width: Math.min(362, column + 32), gap: 6}}>
-          <ValuButton label="Create a new wallet" onPress={() => start('create')} testID="welcome-create" />
-          <TextLink label="I already have a wallet" onPress={() => start('import')} testID="welcome-import" />
+          <ValuButton label="First time use" onPress={() => start('create')} testID="welcome-create" />
+          <TextLink label="Recover vault" onPress={() => start('import')} testID="welcome-import" />
         </View>
       </Animated.View>
       <Sheet

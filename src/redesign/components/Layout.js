@@ -113,9 +113,9 @@ export function DenseScreen({topBar, children, footer, scrollRef}) {
   const bottomGap = useBottomGap();
   return (
     <View style={styles.flex}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* Android keeps adjustPan for the old UI; the padding lifts the fields and the button above
+          the keyboard, and the pan then has nothing left to move. */}
+      <KeyboardAvoidingView style={styles.flex} behavior="padding">
         {/* The scroll area starts under the top bar, so scrolled content never runs into it. */}
         <ScrollView
           ref={scrollRef}
