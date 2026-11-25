@@ -116,10 +116,11 @@ export function DenseScreen({topBar, children, footer, scrollRef}) {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {/* The scroll area starts under the top bar, so scrolled content never runs into it. */}
         <ScrollView
           ref={scrollRef}
-          style={styles.flex}
-          contentContainerStyle={{paddingTop: top + BACK_SIZE + 40, paddingBottom: 24, alignItems: 'center'}}
+          style={[styles.flex, {marginTop: top + BACK_SIZE + 8}]}
+          contentContainerStyle={{paddingTop: 32, paddingBottom: 24, alignItems: 'center'}}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}>
