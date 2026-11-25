@@ -34,6 +34,29 @@ PODS:
   - hermes-engine (260318099.0.5):
     - hermes-engine/Pre-built (= 260318099.0.5)
   - hermes-engine/Pre-built (260318099.0.5)
+  - LiquidGlass (0.8.2):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-Core
+    - React-Core-prebuilt
+    - React-cxxstableapi
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - Logging (1.4.0)
   - lottie-ios (4.6.0)
   - lottie-react-native (7.5.1):
@@ -1502,6 +1525,31 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - react-native-skia (2.14.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React
+    - React-bridging
+    - React-callinvoker
+    - React-Core
+    - React-Core-prebuilt
+    - React-cxxstableapi
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - react-native-udp (4.1.5):
     - CocoaAsyncSocket
     - React-Core
@@ -2555,6 +2603,7 @@ DEPENDENCIES:
   - fmt (from `build/rndeps-facades/fmt`)
   - glog (from `build/rndeps-facades/glog`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
+  - "LiquidGlass (from `../node_modules/@callstack/liquid-glass`)"
   - lottie-react-native (from `../node_modules/lottie-react-native`)
   - MnemonicSwift (~> 2.0.0)
   - RCT-Folly (from `build/rndeps-facades/RCT-Folly`)
@@ -2605,6 +2654,7 @@ DEPENDENCIES:
   - react-native-pager-view (from `../node_modules/react-native-pager-view`)
   - react-native-randombytes (from `../node_modules/react-native-randombytes`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
+  - "react-native-skia (from `../node_modules/@shopify/react-native-skia`)"
   - react-native-udp (from `../node_modules/react-native-udp`)
   - react-native-verus (from `../node_modules/react-native-verus`)
   - react-native-video (from `../node_modules/react-native-video`)
@@ -2715,6 +2765,8 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-v260318099.0.5
+  LiquidGlass:
+    :path: "../node_modules/@callstack/liquid-glass"
   lottie-react-native:
     :path: "../node_modules/lottie-react-native"
   RCT-Folly:
@@ -2811,6 +2863,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-randombytes"
   react-native-safe-area-context:
     :path: "../node_modules/react-native-safe-area-context"
+  react-native-skia:
+    :path: "../node_modules/@shopify/react-native-skia"
   react-native-udp:
     :path: "../node_modules/react-native-udp"
   react-native-verus:
@@ -2949,6 +3003,7 @@ SPEC CHECKSUMS:
   glog: b4427c3119645da795ff09985ba9da909c940c96
   gRPC-Swift: 74adcaaa62ac5e0a018938840328cb1fdfb09e7b
   hermes-engine: 79484fc4e58f328d01b9339ef899ca633d3702ee
+  LiquidGlass: 4d5afc5066870b0cd0d504969b55e004a14dba91
   Logging: beeb016c9c80cf77042d62e83495816847ef108b
   lottie-ios: 8f959969761e9c45d70353667d00af0e5b9cadb3
   lottie-react-native: 794b7e6e33575f25d0f2eda62f2307501a20e068
@@ -3001,6 +3056,7 @@ SPEC CHECKSUMS:
   react-native-pager-view: 13deeaa894748e85178f1b870d0d10a99a5a5344
   react-native-randombytes: 421f1c7d48c0af8dbcd471b0324393ebf8fe7846
   react-native-safe-area-context: f0a72873520949c9284ae231bc5237ad5bf38c1a
+  react-native-skia: 91a8d4869ddc9e048087ea04c19e2c07612baf27
   react-native-udp: 8864b1211857e9d8224ae5cbaf8580970fb99de1
   react-native-verus: ce0050552f0049c2952e092c93f5801ebbe3ac3c
   react-native-video: 9ade9bb7ec295d3f2fd64a198cd1c41f8422525c

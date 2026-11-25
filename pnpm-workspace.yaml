@@ -4,6 +4,11 @@ packages:
 nodeLinker: hoisted
 blockExoticSubdeps: false
 autoInstallPeers: false
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false
+minimumReleaseAgeExcludePrune: true
+trustLockfile: false
 
 overrides:
   "@bitgo/utxo-lib": "github:VerusCoin/BitGoJS#1603126ee9b19d922b76050ed5965b7bc9bd0fa7"

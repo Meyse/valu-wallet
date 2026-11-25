@@ -47,6 +47,8 @@ import { SecureStorage } from "./utils/keychain/secureStore";
 import { recoverPasswordMigration } from "./utils/asyncStore/authDataStorage";
 import { VerusLogo, ValuLogo, ValuSeperator } from "./images/customIcons";
 import Styles from "./styles/index";
+import { loadRedesignFlag } from "./redesign/state/redesignState";
+import RedesignSplash, { useSplashIsRedesigned } from "./redesign/onboarding/RedesignSplash";
 export class VerusMobile extends React.Component {
   constructor(props) {
     super(props);
@@ -96,6 +98,8 @@ export class VerusMobile extends React.Component {
       // Load secret credential from keychain to decrypt data storage, and if loaded successfully, 
       // cycle secret credential with a newly generated one
       await secureStorageInitialization;
+      // Redesign switch (UI only): read it before the first route is chosen.
+      await loadRedesignFlag();
 
       // Resolve any reset interrupted between its journaled storage writes
       // before consumers read password-protected records.
@@ -220,26 +224,35 @@ export class VerusMobile extends React.Component {
           transparent={false}
           visible={this.state.securityCover || this.state.loading}
         >
-          <View
-            style={[
-              {
-                width: "100%",
-                height: "100%",
-                backgroundColor: "white",
-              },
-              {
-                alignItems: "center",
-                justifyContent: "center",
-              },
-            ]}
-          >
-            <Image source={ValuLogo} style={Styles.valuSplashLogo} />
-          </View>
+          <SplashCover />
         </Modal>
       </View>
     );
   }
 }
+
+// R01 Splash when the redesign is on; the old white splash when it is off.
+const SplashCover = () => {
+  const redesigned = useSplashIsRedesigned();
+  if (redesigned) return <RedesignSplash />;
+  return (
+    <View
+      style={[
+        {
+          width: "100%",
+          height: "100%",
+          backgroundColor: "white",
+        },
+        {
+          alignItems: "center",
+          justifyContent: "center",
+        },
+      ]}
+    >
+      <Image source={ValuLogo} style={Styles.valuSplashLogo} />
+    </View>
+  );
+};
 
 const mapStateToProps = (state) => {
   return {

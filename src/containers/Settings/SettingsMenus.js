@@ -23,6 +23,7 @@ import {
 import { clearActiveAccountLifecycles } from '../../actions/actionDispatchers';
 import Colors from '../../globals/colors';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { setRedesignEnabled } from '../../redesign/state/redesignState';
 
 const SETTINGS_BACKGROUND = '#FFFFFF';
 
@@ -144,6 +145,18 @@ class SettingsMenus extends Component {
               onPress={() => this.handleNavigate(destination)}
             />
           ))}
+          <List.Item
+            key="settings-new-ui"
+            title="New wallet UI"
+            description="Switch to the redesigned wallet"
+            titleStyle={{ fontSize: 18, fontWeight: '600', color: 'black' }}
+            descriptionStyle={{ fontSize: 14, color: '#666', marginTop: 6 }}
+            style={[styles.listItem, { paddingVertical: 8 }]}
+            left={(props) => <List.Icon {...props} icon="palette-outline" color={'black'} />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => setRedesignEnabled(true)}
+            testID="settings-new-ui"
+          />
         </List.Section>
         
         <View style={styles.logoutContainer}>
