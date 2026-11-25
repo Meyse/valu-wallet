@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valu Wallet - Onboarding 02, animated gradient</title>
+<!--
+  Mockup of Paper artboard "Onboarding 02 - Take control" (402 x 874), with the top gradient animated.
+  Intro: Paper artboard "Onboarding 01 - Splash" plays first as a short state (logo on dark), then becomes 02.
+  The gradient is rebuilt as 7 radial colour fields, fitted to the Paper PNG fill (see onboarding-gradient-motion.md).
+  One self-contained file: no build step, no external script, no image files.
+-->
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: #0e0e0e; }
+  body {
+    min-height: 100vh; display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+    gap: 40px; padding: 24px;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; color: #e6e6e6;
+  }
+
+  /* ---------- Phone frame (plain, 402 x 874 = artboard) ---------- */
+  .phone {
+    position: relative; flex: none; width: 402px; height: 874px;
+    background: #292929; border-radius: 62px; overflow: clip;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 30px 80px rgba(0,0,0,.5);
+    font-synthesis: none; -webkit-font-smoothing: antialiased;
+    font-family: "Inter", system-ui, sans-serif; font-size: 12px; line-height: 16px;
+    isolation: isolate;
+  }
+
+  /* ---------- Gradient glow (Paper "Gradient glow": 614 x 699 box, rotated -21.57deg) ---------- */
+  .glow { position: absolute; width: 614px; height: 699px; rotate: -21.57deg; transform-origin: 50% 50%;
+          pointer-events: none; opacity: 0; transition: opacity 2.2s ease-out; }
+  .phone[data-stage="main"] .glow { opacity: 1; }
+  .glow-in {
+    position: absolute; inset: 0; opacity: .91; background: rgb(80,249,189);
+    /* soft edge measured from the Paper PNG alpha channel (ellipse 263 x 305, flat to 60%, then fade to 0 at 110%) */
+    -webkit-mask-image: radial-gradient(263px 305px at 50% 50%, #000 0 60%, rgba(0,0,0,.97) 66%, rgba(0,0,0,.87) 73%, rgba(0,0,0,.68) 81%, rgba(0,0,0,.44) 88%, rgba(0,0,0,.22) 95%, rgba(0,0,0,.08) 103%, transparent 110%);
+            mask-image: radial-gradient(263px 305px at 50% 50%, #000 0 60%, rgba(0,0,0,.97) 66%, rgba(0,0,0,.87) 73%, rgba(0,0,0,.68) 81%, rgba(0,0,0,.44) 88%, rgba(0,0,0,.22) 95%, rgba(0,0,0,.08) 103%, transparent 110%);
+    will-change: transform;
+  }
+  .field { position: absolute; border-radius: 50%; will-change: transform; }
+
+  /* ---------- Hex overlay (Paper "Hex overlay": blurred hexagon, overlay blend) ---------- */
+  .hex { position: absolute; left: 117px; top: 162px; width: 186px; height: 206px; mix-blend-mode: overlay; pointer-events: none; }
+  .hex svg { position: absolute; left: -100px; top: -100px; width: 386px; height: 406px; overflow: visible; display: block; }
+
+  /* ---------- Status bar ---------- */
+  .status { position: absolute; left: 0; top: 0; width: 402px; display: flex; align-items: center; gap: 154px; padding: 21px 24px 19px; }
+  .status > div { flex: 1 1 0%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .time { color: #fff; font: 600 17px/22px system-ui, sans-serif; text-align: center; }
+  .status svg { flex: none; display: block; }
+
+  /* ---------- Content ---------- */
+  .block { position: absolute; left: 52px; top: 298px; width: 298px; display: flex; flex-direction: column; align-items: center; gap: 40px; }
+  .logo-slot { flex: none; width: 112px; height: 112px; display: flex; align-items: center; justify-content: center;
+               transform: translateY(83px); transition: transform 1.2s cubic-bezier(.65,0,.25,1); }
+  .tile { flex: none; width: 96px; height: 96px; border-radius: 32px; background: rgba(61,61,61,0); overflow: clip;
+          display: flex; align-items: center; justify-content: center; transition: background-color .9s ease .35s; }
+  .tile svg { display: block; flex: none; width: 52px; height: 44.8px; }
+  .copy { width: 298px; display: flex; flex-direction: column; align-items: center; gap: 16px; opacity: 0; transform: translateY(12px);
+          transition: opacity .8s ease .7s, transform .9s cubic-bezier(.2,.7,.2,1) .7s; }
+  /* Paper draws Inter (text cut); a local static Inter 24pt is ~3% narrower, so tracking is opened by .012em to match Paper's line widths. */
+  .copy h1 { margin: 0; width: 298px; color: #fff; font: 600 28px/36px "Inter", system-ui, sans-serif; letter-spacing: .012em; text-align: center; white-space: nowrap; }
+  .copy p  { margin: 0; width: 298px; color: #fff; font: 400 16px/19px "Inter", system-ui, sans-serif; letter-spacing: .012em; text-align: center; white-space: nowrap; }
+
+  .btn { position: absolute; left: 20px; width: 362px; display: flex; align-items: center; justify-content: center; font-family: "Inter", system-ui, sans-serif;
+         opacity: 0; transition: opacity .8s ease 1s; }
+  .primary { top: 735px; height: 50px; border-radius: 24px; background: #FAFAFA; border: 1px solid #000; color: #3D3D3D; font-weight: 600; font-size: 16px; line-height: 19px; letter-spacing: .005em; cursor: pointer; padding: 0; }
+  .primary:active { background: #ececec; }
+  .link { top: 791px; height: 48px; background: none; border: 0; padding: 0; color: #FAFAFA; font-size: 14px; line-height: 18px; letter-spacing: .012em; text-decoration: underline 1px; text-underline-position: from-font; cursor: pointer; }
+  .home { position: absolute; left: 128px; top: 860px; width: 146px; height: 5px; border-radius: 3px; background: #fff; }
+
+  .phone[data-stage="main"] .logo-slot { transform: none; }
+  .phone[data-stage="main"] .tile { background-color: #3D3D3D; }
+  .phone[data-stage="main"] .copy { opacity: 1; transform: none; }
+  .phone[data-stage="main"] .btn { opacity: 1; }
+  .phone[data-instant] *, .phone[data-instant] { transition: none !important; }
+
+  /* ---------- Control panel (outside the phone, not part of the design) ---------- */
+  .panel { width: 224px; display: flex; flex-direction: column; gap: 20px; font-size: 13px; line-height: 18px; }
+  .panel h2 { margin: 0 0 8px; font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #8a8a8a; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button, .panel .act {
+    font: 500 13px/18px "Inter", system-ui, sans-serif; color: #d8d8d8; background: transparent; cursor: pointer;
+    border: 1px solid #3a3a3a; border-radius: 999px; padding: 6px 12px;
+  }
+  .seg button:hover, .panel .act:hover { border-color: #6a6a6a; }
+  .seg button[aria-pressed="true"] { background: rgba(120,255,170,.14); border-color: #5fe39a; color: #fff; }
+  .panel p { margin: 8px 0 0; color: #8a8a8a; font-size: 12px; line-height: 16px; }
+  .panel button:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<main class="phone" id="phone" data-stage="splash" aria-label="Onboarding 02 - Take control">
+  <div class="glow" id="glow"><div class="glow-in" id="glowIn"></div></div>
+
+  <div class="hex" aria-hidden="true">
+    <svg viewBox="0 0 386 406" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <g opacity="0.5" filter="url(#hexBlur)">
+        <path d="M175.55 106.635C181.907 103.001 185.085 101.183 188.465 100.472C191.455 99.8427 194.545 99.8427 197.535 100.472C200.915 101.183 204.093 103.001 210.45 106.635L268.55 139.852C274.907 143.487 278.085 145.304 280.397 147.847C282.443 150.096 283.988 152.746 284.932 155.625C286 158.879 286 162.514 286 169.783V236.217C286 243.486 286 247.121 284.932 250.375C283.988 253.254 282.443 255.904 280.397 258.153C278.085 260.696 274.907 262.513 268.55 266.148L210.45 299.365C204.093 302.999 200.915 304.817 197.535 305.528C194.545 306.157 191.455 306.157 188.465 305.528C185.085 304.817 181.907 302.999 175.55 299.365L117.45 266.148C111.093 262.513 107.915 260.696 105.603 258.153C103.557 255.904 102.012 253.254 101.068 250.375C100 247.121 100 243.486 100 236.217V169.783C100 162.514 100 158.879 101.068 155.625C102.012 152.746 103.557 150.096 105.603 147.847C107.915 145.304 111.093 143.487 117.45 139.852L175.55 106.635Z" fill="#FAFAFA"/>
+        <path d="M100 169.783V236.217C100 243.486 100 247.121 101.068 250.375C102.012 253.254 103.557 255.904 105.603 258.153C107.915 260.696 111.093 262.513 117.45 266.148L175.55 299.365C181.907 302.999 185.085 304.817 188.465 305.528C191.455 306.157 194.545 306.157 197.535 305.528C200.915 304.817 204.093 302.999 210.45 299.365L268.55 266.148C274.907 262.513 278.085 260.696 280.397 258.153C282.443 255.904 283.988 253.254 284.932 250.375C286 247.121 286 243.486 286 236.217V169.783C286 162.514 286 158.879 284.932 155.625C283.988 152.746 282.443 150.096 280.397 147.847C278.085 145.304 274.907 143.487 268.55 139.852L210.45 106.635C204.093 103.001 200.915 101.183 197.535 100.472C194.545 99.8427 191.455 99.8427 188.465 100.472C185.085 101.183 181.907 103.001 175.55 106.635L117.45 139.852C111.093 143.487 107.915 145.304 105.603 147.847C103.557 150.096 102.012 152.746 101.068 155.625C100 158.879 100 162.514 100 169.783Z" stroke-width="0.660538" stroke="url(#hexStroke)"/>
+      </g>
+      <defs>
+        <filter id="hexBlur" x="0" y="0" width="386" height="406" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="50"/></filter>
+        <linearGradient id="hexStroke" x1="193" y1="100" x2="193" y2="306" gradientUnits="userSpaceOnUse"><stop stop-color="white" stop-opacity="0.08"/><stop offset="1" stop-color="white" stop-opacity="0"/></linearGradient>
+      </defs>
+    </svg>
+  </div>
+
+  <div class="status" aria-hidden="true">
+    <div><div class="time">9:41</div></div>
+    <div>
+      <svg width="82" height="22" viewBox="0 0 82 22" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3.7 13H2.5a1 1 0 0 0-1 1v2.5a1 1 0 0 0 1 1h1.2a1 1 0 0 0 1-1V14a1 1 0 0 0-1-1m5.2-2.5H7.7a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h1.2a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1M14.1 8h-1.2a1 1 0 0 0-1 1v7.5a1 1 0 0 0 1 1h1.2a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1m5.2-2.5h-1.2a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1.2a1 1 0 0 0 1-1v-10a1 1 0 0 0-1-1" fill="#FFF"/>
+        <path fill-rule="evenodd" d="M36.57 7.8c2.49 0 4.88.92 6.68 2.58.14.13.36.12.49 0l1.3-1.27a.34.34 0 0 0 0-.5 12.55 12.55 0 0 0-16.93 0 .34.34 0 0 0 0 .5l1.3 1.26c.13.13.34.14.48 0a10 10 0 0 1 6.68-2.57m0 4.22a5.4 5.4 0 0 1 3.67 1.44c.14.13.35.13.48 0l1.3-1.33a.37.37 0 0 0-.01-.52 7.9 7.9 0 0 0-10.88 0 .37.37 0 0 0 0 .52l1.29 1.32c.13.14.34.14.48 0 1-.92 2.31-1.43 3.67-1.43m2.52 2.8q0 .15-.1.28l-2.18 2.45a.3.3 0 0 1-.24.11.3.3 0 0 1-.24-.1l-2.18-2.46a.43.43 0 0 1 .01-.56 3.44 3.44 0 0 1 4.82 0 .4.4 0 0 1 .11.28" clip-rule="evenodd" fill="#FFF"/>
+        <path fill-rule="evenodd" d="M70.5 5c2.05 0 3.08 0 3.88.34a4.3 4.3 0 0 1 2.28 2.28c.34.8.34 1.83.34 3.88s0 3.08-.34 3.88a4.3 4.3 0 0 1-2.28 2.28c-.8.34-1.83.34-3.88.34h-12c-2.05 0-3.08 0-3.88-.34a4.3 4.3 0 0 1-2.28-2.28c-.34-.8-.34-1.83-.34-3.88s0-3.08.34-3.88a4.3 4.3 0 0 1 2.28-2.28C55.42 5 56.45 5 58.5 5zM58.28 6c-1.85 0-2.77 0-3.48.36a3.3 3.3 0 0 0-1.44 1.44C53 8.5 53 9.43 53 11.28v.44c0 1.85 0 2.77.36 3.48a3.3 3.3 0 0 0 1.44 1.44c.7.36 1.63.36 3.48.36h12.44c1.85 0 2.77 0 3.48-.36a3.3 3.3 0 0 0 1.44-1.44c.36-.7.36-1.63.36-3.48v-.44c0-1.85 0-2.77-.36-3.48a3.3 3.3 0 0 0-1.44-1.44C73.5 6 72.57 6 70.72 6z" clip-rule="evenodd" fill="#FFF" opacity=".35"/>
+        <path d="M54 11c0-1.4 0-2.1.27-2.63a2.5 2.5 0 0 1 1.1-1.1C55.9 7 56.6 7 58 7h13c1.4 0 2.1 0 2.64.27q.72.37 1.09 1.1C75 8.9 75 9.6 75 11v1c0 1.4 0 2.1-.27 2.64a2.5 2.5 0 0 1-1.1 1.09C73.1 16 72.4 16 71 16H58c-1.4 0-2.1 0-2.63-.27a2.5 2.5 0 0 1-1.1-1.1C54 14.1 54 13.4 54 12z" fill="#FFF"/>
+        <path d="M78 9.5v4.08a2.2 2.2 0 0 0 1.33-2.04A2.2 2.2 0 0 0 78 9.5" fill="#FFF" opacity=".35"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="logo-slot" id="logoSlot">
+      <div class="tile">
+        <svg viewBox="0 0 52.119 44.8002" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Valu">
+          <path d="M3.64155 1.17799C7.26844 -1.08834 12.0461 0.0149692 14.3124 3.64186L26.0595 22.4417L27.0331 20.8821C26.9433 23.9624 28.4424 27.0073 31.2441 28.7581C34.0453 30.5083 37.4379 30.5201 40.1669 29.0901L32.6708 41.0882C32.3214 41.662 31.895 42.1959 31.3935 42.6712C30.9197 43.1218 30.3958 43.5034 29.8378 43.8147C29.803 43.8342 29.7674 43.8524 29.7324 43.8714C29.6588 43.9109 29.5854 43.9505 29.5107 43.9876C29.4416 44.0221 29.3714 44.0539 29.3017 44.0862C29.2623 44.1043 29.2233 44.1234 29.1835 44.1409C29.1004 44.1777 29.0165 44.2118 28.9326 44.2454C28.9026 44.2573 28.8728 44.2699 28.8427 44.2815C28.7391 44.3215 28.6348 44.3585 28.5302 44.3938C28.5233 44.3961 28.5166 44.3993 28.5097 44.4016C28.0434 44.5575 27.5684 44.6659 27.0908 44.7298C27.0775 44.7315 27.064 44.7339 27.0507 44.7356C26.9519 44.7483 26.8528 44.759 26.7539 44.7678C26.7204 44.7709 26.6867 44.7731 26.6533 44.7757C26.5736 44.7817 26.4937 44.7867 26.414 44.7903C26.3591 44.7929 26.304 44.7948 26.249 44.7962C26.1859 44.7976 26.1226 44.7982 26.0595 44.7981C25.9968 44.7982 25.9338 44.7976 25.871 44.7962C25.8154 44.7947 25.7596 44.7929 25.704 44.7903C25.6257 44.7868 25.5471 44.7826 25.4687 44.7766C25.4329 44.7739 25.397 44.7701 25.3613 44.7669C25.2653 44.7582 25.1691 44.7479 25.0732 44.7356C25.0567 44.7335 25.0399 44.731 25.0234 44.7288C24.5485 44.6649 24.0759 44.5575 23.6123 44.4026C23.6022 44.3993 23.592 44.3953 23.582 44.3919C23.4801 44.3573 23.3783 44.3205 23.2773 44.2815C23.2454 44.2692 23.2134 44.2561 23.1816 44.2434C23.102 44.2115 23.0222 44.1786 22.9433 44.1438C22.896 44.123 22.8487 44.1011 22.8017 44.0794C22.7377 44.0496 22.6728 44.0202 22.6093 43.9885C22.5199 43.9441 22.4315 43.8968 22.3437 43.8489C22.3266 43.8395 22.309 43.8301 22.2919 43.8206C22.1922 43.7651 22.0935 43.7067 21.996 43.6467C21.983 43.6387 21.969 43.6314 21.956 43.6233C21.9536 43.6218 21.9506 43.62 21.9482 43.6184C21.8542 43.5596 21.7615 43.4978 21.6699 43.4348C21.6528 43.4231 21.6351 43.4115 21.6181 43.3997C21.3056 43.181 21.0063 42.9383 20.7255 42.6712C20.2175 42.1895 19.7864 41.6473 19.4345 41.0647L1.17866 11.8489C-1.08763 8.22207 0.0148166 3.44438 3.64155 1.17799ZM48.4785 1.17799C48.5919 1.24888 48.7029 1.32211 48.8115 1.39772C48.7026 1.32205 48.5911 1.24899 48.4775 1.17799C48.4565 1.16491 48.435 1.15278 48.414 1.13991C48.4351 1.15284 48.4574 1.16484 48.4785 1.17799Z" fill="#fff"/>
+          <circle cx="26.5486" cy="13.6502" r="8.75" fill="#fff"/>
+          <path d="M37.8073 3.64166C40.0736 0.0147645 44.8513 -1.08854 48.4782 1.17779C52.1048 3.4442 53.2074 8.2219 50.9411 11.8487L42.5632 25.2559C40.2967 28.8824 35.52 29.985 31.8932 27.7188C30.1907 26.655 29.0444 25.0379 28.5417 23.2461C32.9981 22.3253 36.3482 18.3797 36.3483 13.6504C36.3483 11.722 35.7887 9.92534 34.8268 8.40924L37.8073 3.64166Z" fill="#fff"/>
+        </svg>
+      </div>
+    </div>
+    <div class="copy">
+      <h1>Take control of<br>your identity</h1>
+      <p>Lets start with the creation of a<br>personal, locally stored profile</p>
+    </div>
+  </div>
+
+  <button class="btn primary" type="button">First time use</button>
+  <button class="btn link" type="button">Recover vault</button>
+  <div class="home"></div>
+</main>
+
+<aside class="panel" aria-label="Mockup controls (not part of the design)">
+  <div>
+    <h2>Gradient motion</h2>
+    <div class="seg" id="motionSeg" role="group" aria-label="Motion variant">
+      <button type="button" data-v="drift" aria-pressed="true">Slow drift</button>
+      <button type="button" data-v="breathe" aria-pressed="false">Breathing</button>
+      <button type="button" data-v="flow" aria-pressed="false">Flowing</button>
+      <button type="button" data-v="still" aria-pressed="false">Still</button>
+    </div>
+    <p id="motionNote">Colour fields wander on slow, offset loops.</p>
+  </div>
+  <div>
+    <h2>Colours</h2>
+    <div class="seg" id="palSeg" role="group" aria-label="Palette">
+      <button type="button" data-p="take" aria-pressed="true">Screen 02</button>
+      <button type="button" data-p="connect" aria-pressed="false">Screen 06</button>
+    </div>
+    <p>Same motion on the yellow glow of screen 06 (gradient only).</p>
+  </div>
+  <div>
+    <h2>Intro</h2>
+    <button type="button" class="act" id="replay">Replay splash to screen 02</button>
+  </div>
+  <p id="rmNote" hidden>Reduced motion is on: the gradient stays still and the intro is skipped.</p>
+</aside>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const phone = $('#phone'), glow = $('#glow'), glowIn = $('#glowIn');
+
+  /* ---- Colour fields: 7 radial ellipses fitted to the Paper PNG fill. Coordinates are px in the 614 x 699 glow box.
+         [x, y, rx, ry, [r, g, b]] drawn back to front over `base`. Each fades linearly to transparent. ---- */
+  const PALETTES = {
+    take: { // Onboarding 02 and 03 (centre of glow box at 153,146 in the artboard)
+      centre: [153, 146], base: [80, 249, 189],
+      fields: [
+        [187.8, 237.2, 194.6, 248.3, [149, 133, 255]],
+        [166.0, 370.9, 190.1, 340.0, [31, 182, 255]],
+        [356.9, 154.1, 149.2, 249.2, [205, 255, 221]],
+        [446.4, 411.2, 192.9, 244.3, [73, 255, 101]],
+        [267.4, 519.1, 476.0, 203.4, [48, 229, 175]],
+        [513.8, 171.3, 267.6, 184.9, [118, 255, 147]],
+        [46.3, 446.3, 319.3, 340.1, [33, 208, 255]]
+      ]
+    },
+    connect: { // Onboarding 06 (centre 226,60)
+      centre: [226, 60], base: [249, 225, 69],
+      fields: [
+        [373.8, 83.9, 458.8, 304.5, [233, 220, 166]],
+        [33.2, 478.8, 68.4, 179.7, [75, 208, 205]],
+        [363.5, 163.2, 148.5, 352.2, [167, 255, 219]],
+        [525.8, 419.9, 287.2, 186.1, [0, 247, 51]],
+        [427.5, 577.6, 519.9, 304.6, [120, 247, 110]],
+        [460.3, 302.5, 181.2, 297.0, [78, 255, 149]],
+        [2.9, 358.5, 120.0, 256.3, [123, 252, 109]]
+      ]
+    }
+  };
+  const BOX_C = [307, 349.5];
+  let pal = 'take', fieldEls = [];
+
+  function buildFields(name) {
+    pal = name;
+    const P = PALETTES[name];
+    glowIn.textContent = '';
+    glowIn.style.background = `rgb(${P.base})`;
+    glow.style.left = (P.centre[0] - 307) + 'px';
+    glow.style.top = (P.centre[1] - 349.5) + 'px';
+    fieldEls = P.fields.map(([x, y, rx, ry, c]) => {
+      const d = document.createElement('div');
+      d.className = 'field';
+      d.style.cssText = `left:${x - rx}px;top:${y - ry}px;width:${rx * 2}px;height:${ry * 2}px;` +
+        `background:radial-gradient(closest-side, rgb(${c}), rgba(${c},0))`;
+      glowIn.appendChild(d);
+      return d;
+    });
+  }
+
+  /* ---- Motion variants. Each returns, per field i and time t (s), {dx, dy, rot, scale} and a group scale.
+         All are sums of sines: no loop point, so no jump. Weights ease in, so switching never jumps either. ---- */
+  const TAU = Math.PI * 2;
+  const DRIFT = [ // amplitude px, period s, phase
+    { ax: 34, ay: 26, px: 29, py: 37, f: 0.0 },
+    { ax: 30, ay: 36, px: 41, py: 33, f: 1.7 },
+    { ax: 38, ay: 30, px: 35, py: 47, f: 3.1 },
+    { ax: 32, ay: 34, px: 43, py: 31, f: 4.4 },
+    { ax: 44, ay: 20, px: 53, py: 39, f: 2.2 },
+    { ax: 28, ay: 26, px: 37, py: 45, f: 5.3 },
+    { ax: 26, ay: 32, px: 47, py: 36, f: 0.9 }
+  ];
+  const VARIANTS = {
+    drift(i, t) {
+      const d = DRIFT[i];
+      return { dx: d.ax * Math.sin(TAU * t / d.px + d.f), dy: d.ay * Math.sin(TAU * t / d.py + d.f * 1.3), rot: 0, scale: 0, group: 0 };
+    },
+    breathe(i, t) {
+      const P = 9.5, s = Math.sin(TAU * t / P + i * 0.85);
+      // fields swell and ease back in a wave; the whole glow takes a slow, shallow breath
+      return { dx: 0, dy: 0, rot: 0, scale: 0.13 * s, group: i === 0 ? 0.035 * Math.sin(TAU * t / P - 0.6) : 0 };
+    },
+    flow(i, t) {
+      const P = 44, a = 15 * Math.sin(TAU * t / P - i * 0.62); // degrees, travelling wave across the fields
+      return { dx: 0, dy: 0, rot: a, scale: 0, group: 0, orbit: true };
+    },
+    still() { return { dx: 0, dy: 0, rot: 0, scale: 0, group: 0 }; }
+  };
+
+  const weights = { drift: 1, breathe: 0, flow: 0, still: 0 };
+  let target = 'drift';
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  let fixedT = null, tStart = performance.now(), last = tStart, raf = 0;
+
+  function render(t) {
+    const P = PALETTES[pal];
+    let g = 0;
+    fieldEls.forEach((el, i) => {
+      let dx = 0, dy = 0, rot = 0, sc = 0;
+      for (const k in weights) {
+        const w = weights[k]; if (w < 0.001) continue;
+        const o = VARIANTS[k](i, t);
+        if (o.orbit) { // rotate the field's position about the centre of the glow box
+          const th = o.rot * Math.PI / 180 * w, [x, y] = P.fields[i], cx = BOX_C[0], cy = BOX_C[1];
+          dx += (x - cx) * (Math.cos(th) - 1) - (y - cy) * Math.sin(th);
+          dy += (x - cx) * Math.sin(th) + (y - cy) * (Math.cos(th) - 1);
+          rot += o.rot * w;
+        } else { dx += o.dx * w; dy += o.dy * w; rot += o.rot * w; }
+        sc += o.scale * w; if (i === 0) g += o.group * w;
+      }
+      el.style.transform = `translate3d(${dx.toFixed(2)}px,${dy.toFixed(2)}px,0) rotate(${rot.toFixed(3)}deg) scale(${(1 + sc).toFixed(4)})`;
+    });
+    glowIn.style.transform = `scale(${(1 + g).toFixed(4)})`;
+  }
+
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    const k = 1 - Math.exp(-dt / 0.9); // ease weights toward the chosen variant (~1.5 s)
+    for (const v in weights) weights[v] += ((v === target ? 1 : 0) - weights[v]) * k;
+    render(fixedT ?? (now - tStart) / 1000);
+    raf = requestAnimationFrame(frame);
+  }
+
+  function applyMotionPreference() {
+    cancelAnimationFrame(raf);
+    $('#rmNote').hidden = !reduce.matches;
+    if (reduce.matches) {
+      for (const v in weights) weights[v] = 0;   // exact still design
+      render(0);
+    } else {
+      last = performance.now(); raf = requestAnimationFrame(frame);
+    }
+  }
+
+  /* ---- Intro: splash (screen 01) -> screen 02 ---- */
+  let introTimer = 0;
+  function playIntro(skip) {
+    clearTimeout(introTimer);
+    phone.toggleAttribute('data-instant', true);
+    phone.dataset.stage = skip ? 'main' : 'splash';
+    void phone.offsetWidth;
+    phone.toggleAttribute('data-instant', false);
+    if (!skip) introTimer = setTimeout(() => { phone.dataset.stage = 'main'; }, 1300);
+  }
+
+  /* ---- Controls ---- */
+  const NOTES = {
+    drift: 'Colour fields wander on slow, offset loops.',
+    breathe: 'Fields swell in a slow wave; the glow takes a shallow breath.',
+    flow: 'Colours swirl about the centre in a travelling wave.',
+    still: 'The design as drawn in Paper.'
+  };
+  $('#motionSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    target = b.dataset.v;
+    document.querySelectorAll('#motionSeg button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    $('#motionNote').textContent = NOTES[target];
+    if (reduce.matches) { for (const v in weights) weights[v] = 0; render(0); }
+  });
+  $('#palSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    document.querySelectorAll('#palSeg button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    buildFields(b.dataset.p); render(fixedT ?? (performance.now() - tStart) / 1000);
+  });
+  $('#replay').addEventListener('click', () => playIntro(reduce.matches));
+  reduce.addEventListener('change', applyMotionPreference);
+
+  /* ---- Test hooks (used for screenshots): #v=flow&t=12&p=connect&intro=0 ---- */
+  const h = new URLSearchParams(location.hash.slice(1));
+  buildFields(h.get('p') === 'connect' ? 'connect' : 'take');
+  if (h.get('v') && VARIANTS[h.get('v')]) {
+    target = h.get('v');
+    document.querySelectorAll('#motionSeg button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.v === target)));
+    $('#motionNote').textContent = NOTES[target];
+    for (const v in weights) weights[v] = v === target ? 1 : 0;
+  }
+  if (h.get('p') === 'connect') document.querySelectorAll('#palSeg button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.p === 'connect')));
+  if (h.has('t')) fixedT = parseFloat(h.get('t'));
+  window.__setT = (t) => { fixedT = t; render(t); };
+  render(fixedT ?? 0);
+  playIntro(reduce.matches || h.get('intro') === '0');
+  applyMotionPreference();
+})();
+</script>
+</body>
+</html>
