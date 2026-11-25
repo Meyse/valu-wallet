@@ -45,6 +45,9 @@ same subject.
 | 2026-11-25 | Font: the app bundles Inter. Status on 2026-11-25: no Inter font file is in any local branch yet (checked `main`, `origin/main`, `claude/rn-upgrade`, `claude/redesign-onboarding-mockup`). |
 | 2026-11-25 | Gradient drawing: a drawing library for the gradient is approved. The library is chosen at build time. |
 | 2026-11-25 | Onboarding flow: the real flow is Paper page `p-2-0` "Onboarding - real flow" with its flow note. It adds one colour that the design team does not have: error red `#FF6B6B`. This colour is an addition by Max's side, not by the design team. |
+| 2026-11-25 | Sheet source: the Figma CSS export of the design team's sheet ("Send selected attributes?"), pasted by Max, is the source for [Sheet and alert](#sheet-and-alert). File: `~/.claude/orchestrator/notes/valu-wallet-redesign-figma-sheet-css.md`. Where the Paper import differs, the Figma CSS wins. |
+| 2026-11-25 | Import order (Max's leaning): on import, the recovery phrase comes before the password. A technical check runs in the Paper flow thread. Not final until that check is done. |
+| 2026-11-25 | Platform look: the iOS designs use liquid glass for the tab bar and the back button. An Android version of those parts, in the newest Android visual style, is being designed on a new Paper page by another thread. See [Platform: Android](#platform-android). |
 
 ### Artboards
 
@@ -63,7 +66,7 @@ same subject.
 | Onboarding 11 - Home | 393 × 852 | Icon buttons, welcome card, activity row, tab bar |
 | Crypto - Empty balance | 393 × 852 | Balance display (zero), asset row, action grid, tab bar |
 | Money - With balance | 393 × 852 | Balance display ($85.27), asset row, action grid, tab bar |
-| Sheet - Send attributes | 393 × 852 | Sheet over a blurred background: icon, title, body, pill item row, two buttons (added to `p-1-0` after the first import, see Authority) |
+| Sheet - Send attributes | 393 × 852 | Sheet over a blurred background: icon, title, body, item row, two buttons (added to `p-1-0` after the first import, see Authority; the Figma CSS wins over it) |
 
 The status bar, the home indicator, the keyboard and the device corner radius
 (62 px on 402-wide artboards, 55 px on 393-wide artboards) are iOS system
@@ -111,7 +114,7 @@ digits (for example `#00000052` is black at 32 %).
 | `--color-text-secondary` | `#EBEBEB` | Secondary text: subtitles, meta, tab labels, step labels | 03, 04, 06, 09, 11, Crypto, Money |
 | `--color-text-muted` | `#737373` | De-emphasised part of an identity name | ".valuid@" suffix on 09 |
 | `--color-text-on-primary` | `#3D3D3D` | Label on the primary button | All primary buttons |
-| `--color-border` | `#FFFFFF1A` | 1 px outline on dark surfaces and the blue sheet button | Glass panel, welcome card, action cards, sheets, pill item row, "Send" button |
+| `--color-border` | `#FFFFFF1A` | 1 px outline on dark surfaces (Paper; see Open points for the Figma sheet) | Glass panel, welcome card, action cards, sheets |
 | `--color-border-on-light` | `#0000001A` | 1 px outline on the white primary button | All `#FAFAFA` buttons |
 | `--color-border-subtle` | `#FFFFFF14` | 1 px outline on the tab bar | Tab bar |
 
@@ -132,11 +135,10 @@ The zero balance uses a colour with alpha, not node opacity: the digits
 | Proposed token | Value | Role | Where it appears |
 | --- | --- | --- | --- |
 | `--color-primary` | `#FAFAFA` | Primary button fill. Text button label. | All primary buttons; "Recover vault" on 02 |
-| `--color-accent` | `#1F89FA` | Focus, selection and the blue step | Focused text field border (03), active tab icon and label, "Device key" step icon (04, 05), Receive icon disc |
+| `--color-accent` | `#1F89FA` | Focus, selection, the blue step, and the primary button in a sheet | Focused text field border (03), active tab icon and label, "Device key" step icon (04, 05), Receive icon disc, "Send" in the Figma sheet |
 | `--color-success` | `#42DF5E` | Completed or confirmed state | Key icon on 10, check-badge icon on welcome card (11), smile icon on 09 |
 | `--color-success-soft` | `#90F993` | Small link icon next to the balance label | "Balance link icon" on Money |
 | `--color-highlight` | `#FFD56F` | The yellow step | "Connect account" step icon on 06, 07 |
-| `--color-sheet-confirm` | `#6385F0` | Confirm button in a sheet | "Send" on "Sheet - Send attributes" |
 | `--color-error` | `#FF6B6B` | Error text and error state. Addition by Max's side, not by the design team (decision 2026-11-25). | Error states on `p-2-0` (R05, R06, R13, R18) |
 
 ### Category colours (icon discs)
@@ -185,10 +187,19 @@ conic-gradient(in oklab from 90deg at 50% 50%,
 | `--color-brand-blue` | `#51A4FD` |
 | `--color-brand-sky` | `#81D2E4` |
 
-The service avatar in the sheet's pill item row uses a second gradient:
-`linear-gradient(in oklab 135deg, #4AA8F0 0%, #6FD9A0 100%)`, 40 × 40,
-radius 12. The Activity avatar on Home uses the conic gradient above. See
-Open points.
+The Figma sheet names a second conic gradient "Verification". It fills the
+app icon in the sheet's item row (40 × 40, radius 12):
+
+```
+conic-gradient(from 0deg at 50% 50%,
+  rgba(177,255,202,0.9) 0deg, rgba(69,252,126,0.9) 93.6deg,
+  rgba(33,203,255,0.9) 270deg, #51A4FD 324deg, rgba(177,255,202,0.9) 360deg)
+```
+
+Proposed token: `--gradient-verification` (Tailwind v4 has no gradient
+namespace; keep it as a named constant in code). Its stops are the brand
+colours `#B1FFCA`, `#45FC7E`, `#21CBFF` at 90 % alpha and `#51A4FD`. The
+Activity avatar on Home uses the 7-stop conic gradient above.
 
 ## Onboarding background
 
@@ -382,7 +393,7 @@ These differ. See [Open points](#open-points).
 | --- | --- | --- |
 | `--radius-xs` | 4 px | Scanner corner marks |
 | `--radius-sm` | 12 px | Avatar tile (40 × 40) |
-| `--radius-md` | 20 px | Pill item row in a sheet (56 high) |
+| `--radius-md` | 20 px | Item row in a sheet (58 high, Figma) |
 | `--radius-lg` | 24 px | Primary button, glass panel, card, action card, list row, sheet, alert button |
 | `--radius-field` | 30 px | Text field (renders as a pill) |
 | `--radius-icon-tile` | 32 px | App icon tile (96 × 96) |
@@ -395,7 +406,8 @@ a full pill. Keep 24 so that the button matches the cards.
 ## Borders
 
 - 1 px solid `#FFFFFF1A` (`--color-border`) on: glass panel, welcome card,
-  action cards, sheets, the pill item row and the blue sheet button. The light
+  action cards and sheets (Paper values). The Figma sheet CSS has no border on
+  its card and buttons, and `rgba(255,255,255,0.08)` on the item row. The light
   outline separates a same-tone surface from the `#292929` background.
 - 1 px solid `#0000001A` (`--color-border-on-light`) on every white
   (`#FAFAFA`) button.
@@ -579,46 +591,66 @@ One component for every in-app sheet and in-app alert. Decision of
 2026-11-25: the screen behind is completely blurred and darkened, and the
 card stands apart with a thin gradient border.
 
-Sources (read twice from Paper on 2026-11-25): "Sheet - Send attributes",
-"Onboarding 10 - Key accepted", and the overlays on "Onboarding 05 - Device
-key alert" and "Onboarding 07 - Camera alert". Reference screenshot from the
-design team's Figma: the "Send selected attributes?" sheet.
+Source: the design team's Figma CSS export of the "Send selected
+attributes?" sheet (`~/.claude/orchestrator/notes/valu-wallet-redesign-figma-sheet-css.md`)
+and the Figma screenshot of the same sheet. The Figma CSS wins over the
+Paper import. Paper sources, read twice on 2026-11-25: "Sheet - Send
+attributes", "Onboarding 10 - Key accepted", and the overlays on 05 and 07.
+Each difference is listed under [Open points](#open-points) as "Paper import
+differs from Figma".
 
 Anatomy, back to front:
 
 1. Backdrop: the current screen, blurred and darkened over its full area.
-2. Card, floating (it does not touch the screen edges or the bottom; no drag
-   handle).
-3. Content column, gap 16: icon, title, body, optional pill item row.
-4. Button column, gap 8: primary button, optional secondary button.
-   Gap 48 between the content column and the button column.
+2. Card, floating: it does not touch the screen edges, 24 px above the
+   bottom edge. No drag handle.
+3. Top group, column, gap 16: icon, then a text group (title, gap 16, body),
+   then an optional item row.
+4. Button group, column, gap 8: primary button, optional secondary button.
+   Gap 48 between the top group and the button group.
 
-| Part | Values in Paper | Token |
+| Part | Values (Figma CSS unless marked) | Token |
 | --- | --- | --- |
-| Backdrop tint | 05 and 07: `#28283066` over the full screen, no blur. Sheet artboards: an opaque, blurred stand-in (`#26272A` with blobs on 10; `#1C1C1F` with blobs on "Sheet - Send attributes"), see [Shadows, blur and depth](#shadows-blur-and-depth). | `--color-scrim` |
-| Backdrop blur | Not drawable in Paper. The stand-in blobs use `blur(28px)` to `blur(40px)`. | — (Open point) |
-| Card | Width 343; padding 24; fill `#292929`; radius 24; on "Sheet - Send attributes" at left 30, top 366 on a 393 × 852 frame; on 10 at left 30, top 510 on a 402 × 874 frame | `--color-surface`, `--radius-lg`, `--spacing-6` |
-| Card border | 1 px solid `#FFFFFF1A` in Paper (flat). Decision: thin gradient border; stops from Figma. | `--color-border` until the gradient is known |
-| Icon | 48 × 48 outline icon. "Send attributes": white `#FFFFFF`, stroke 1.8, round joins. 10: `#42DF5E` key, stroke 2. | `--color-text` or a semantic colour |
-| Title | 28 / 36 / 600, `#FFFFFF`, width 295 | `--text-title` |
-| Body | 14 / 18 / 400, `#FFFFFF` (width 270 on "Send attributes", 295 on 10) | `--text-body` |
-| Pill item row | 295 × 56; border 1 px `#FFFFFF1A`; radius 20; no fill; inline padding 7; gap 12. Leading: 40 × 40 avatar, radius 12, `linear-gradient(in oklab 135deg, #4AA8F0 0%, #6FD9A0 100%)`, white logo glyph 26 × 22. Label: 16 / 19 / 600 white, fills the row. Trailing: 24 × 24 lock icon, stroke `#EBEBEB` 1.6. | `--radius-md`, `--color-border`, `--text-label` |
-| Primary button (in a sheet with two buttons) | 295 × 50; fill `#6385F0`; border 1 px `#FFFFFF1A`; radius 24; label 16 / 19 / 600 `#FFFFFF` ("Send") | `--color-sheet-confirm` |
-| Secondary button | 295 × 50; fill `#FAFAFA`; border 1 px `#0000001A`; radius 24; label 16 / 19 / 600 `#3D3D3D` ("Cancel") | `--color-primary`, `--color-border-on-light`, `--color-text-on-primary` |
-| Single button (sheet with one action) | 295 × 50 white button ("Close" on 10), same values as the secondary button | as above |
+| Backdrop tint | Not in the Figma CSS. Paper: `#28283066` over the full screen on 05 and 07. | `--color-scrim` |
+| Backdrop blur | Not in the Figma CSS. Paper has only drawn stand-ins (blobs with `blur(28px)`–`blur(40px)`). | — (Open point) |
+| Card | Width 343, height 464 for this content, left 29 and bottom 24 on a 402-wide screen; flex column, `align-items: flex-start`; padding 24; gap 48; fill `#292929`; radius 24 | `--color-surface`, `--radius-lg`, `--spacing-6`, `--spacing-12` |
+| Card border | Not in the CSS export (a Figma gradient stroke does not export). Decision: thin gradient border. Exact stops, angle and width unknown. The screenshot shows a thin light edge. | — (Open point) |
+| Content width | 293 (top group and button group) | — |
+| Icon | 48 × 48 frame, 40 × 40 vector centred, outline, stroke 2 px `#FFFFFF` | `--color-text` |
+| Title | Inter 600, 28 / 34, `#FFFFFF` | `--text-title`, line height 34 (see Open points) |
+| Body | Inter 400, 14 / 18, `#FFFFFF`. Figma style `font/size/body/400`. | `--text-body` |
+| Item row | Height 58; row, `justify-content: space-between`, centred; padding 8 12 8 8 (top, right, bottom, left); gap 12; border 1 px `rgba(255,255,255,0.08)` (= `#FFFFFF14`); radius 20; no fill | `--radius-md`, `--color-border-subtle` |
+| Item row: app icon | 40 × 40, radius 12, "Verification" conic gradient (see [Brand gradient stops](#brand-gradient-stops)); white logo 28 × 28 at (6, 6) | `--radius-sm` |
+| Item row: label | Inter 600, 16 / 19, `#FFFFFF`, 12 px after the icon. Figma style `font/size/title/600`. | `--text-label` |
+| Item row: trailing icon | 24 × 24 frame, outline, stroke 1 px `#EBEBEB` (a lock in the screenshot) | `--color-text-secondary` |
+| Button (both) | Height 50 (min height 48); padding 12; gap 6; radius 24; content centred; label wrapper padding-right 4; width 293. No border in the CSS. | `--radius-lg` |
+| Primary button | Fill `#1F89FA`; label Inter 600 16 / 19 `#FFFFFF` ("Send") | `--color-accent`, `--text-label` |
+| Secondary button | Fill `#FAFAFA`; label Inter 600 16 / 19 `#3D3D3D` ("Cancel") | `--color-primary`, `--color-text-on-primary` |
+| Button sub-label | Figma style `font/size/title/100` = Inter 500, 10 / 12. Hidden in this sheet. | — (only use of weight 500) |
+| Single button | A sheet with one action uses one white button ("Close" on 10 in Paper) | as Secondary button |
+
+Figma type style names seen in the export:
+
+| Figma style | Value | Role in this document |
+| --- | --- | --- |
+| `font/size/title/600` | Inter 600, 16 / 19 | Label large |
+| `font/size/body/400` | Inter 400, 14 / 18 | Body |
+| `font/size/title/100` | Inter 500, 10 / 12 | Hidden button sub-label |
+
+The 28 px sheet title has no style name in the export.
 
 Rules:
 
 - Do: blur and darken the real screen behind. The backdrop covers the status
   bar area too.
-- Do: put the positive action on top (blue) and the cancel action under it
-  (white).
-- Do: use the pill item row to name the party or item that the action
-  concerns.
+- Do: put the positive action on top (blue `#1F89FA`) and the cancel action
+  under it (white).
+- Do: use the item row to name the party or item that the action concerns.
 - Do: use this component for in-app yes/no questions instead of the light
   alert on 05 and 07.
 - Do not: draw the blobs from the Paper stand-ins.
 - Do not: put more than two buttons in a sheet.
+- Do not: show the hidden button sub-label until a design uses it.
 - Do not: build OS permission prompts (camera, Face ID). The OS draws them.
   The light alert on 05 and 07 copies the iOS look; its values are in
   [Alert and overlay colours](#alert-and-overlay-colours) for reference only.
@@ -683,7 +715,10 @@ Rules:
 
 ### Navigation bar (top)
 
-The designs have no title bar and no back button. The top area holds only:
+Page `p-1-0` has no title bar and no back button. The real onboarding flow
+on `p-2-0` uses a back button on dense steps. On iOS the back button uses
+liquid glass (decision of 2026-11-25); for Android see
+[Platform: Android](#platform-android). On `p-1-0` the top area holds only:
 
 - Onboarding: the system status bar over the glow.
 - Home: two icon buttons (Scan left, Settings right) at top 67.
@@ -704,7 +739,10 @@ See Open points for back navigation.
 - Active tab: a 90 × 54 pill, fill `--color-tab-active` (`#3F3F3F`), radius 27,
   label in `--color-accent` (`#1F89FA`). The icon colour differs: blue on
   Home (11), white on Crypto and Money (see Open points).
-- Do: keep four tabs.
+- Do: keep four tabs (decision of 2026-11-25).
+- iOS: the tab bar uses liquid glass (decision of 2026-11-25). The fill and
+  border above are the flat Paper import; the iOS system material replaces
+  them. Android: see [Platform: Android](#platform-android).
 - Do not: add a top border line or a solid full-width bar.
 
 ### Camera scanner
@@ -714,6 +752,19 @@ See Open points for back navigation.
 - Four corner marks: 18 × 18, 3 px white, radius 4, at (92, 328), (292, 328),
   (92, 528), (292, 528). The marked square is 218 × 218.
 - No title, no hint text, no close button in the design.
+
+## Platform: Android
+
+Placeholder. Decision of 2026-11-25: the iOS designs use liquid glass for
+the tab bar and the back button. An Android version of those parts, in the
+newest Android visual style, is being designed on a new Paper page by
+another thread. This section will hold its values when that page is ready.
+
+Until then:
+
+- Do not copy iOS liquid glass to Android.
+- Do not invent Android values for the tab bar or the back button.
+- All other tokens in this document apply to both platforms.
 
 ## Token table (Tailwind v4 theme proposal)
 
@@ -749,7 +800,6 @@ This block is a proposal. It is not in the Paper file and not in the app.
   --color-success: #42DF5E;
   --color-success-soft: #90F993;
   --color-highlight: #FFD56F;
-  --color-sheet-confirm: #6385F0;
   --color-error: #FF6B6B; /* addition by Max's side, not the design team */
 
   /* Categories */
@@ -989,12 +1039,32 @@ family name (for example `Inter-Regular`, `Inter-SemiBold`), because
 12. Sheet card position: on "Sheet - Send attributes" (393 wide) the card is
     at left 30 with width 343, so the right gap is 20 and the left gap is 30.
     The values look copied from the 402-wide artboard 10.
-13. Three blues for actions: `#1F89FA` (accent), `#0A72EA` (system alert
-    confirm), `#6385F0` (sheet confirm). Decide whether the sheet confirm and
-    the accent are one colour.
-14. Two avatar gradients: conic brand gradient (Activity row on 11) and
-    `linear-gradient(135deg, #4AA8F0, #6FD9A0)` (pill item row). Confirm in
-    Figma which one the team uses.
+13. Two blues for actions: `#1F89FA` (accent and sheet primary) and
+    `#0A72EA` (the light system alert on 05 and 07, reference only).
+14. Paper import differs from Figma (sheet). The Figma CSS wins. Paper
+    "Sheet - Send attributes" has:
+    - card left 30 on a 393 frame; Figma: left 29, bottom 24 on a 402 frame;
+    - card border 1 px `#FFFFFF1A`; Figma CSS: no border (gradient in Figma,
+      stops unknown);
+    - content width 295; Figma: 293;
+    - icon stroke 1.8; Figma: 2;
+    - title line height 36; Figma: 34;
+    - item row height 56, inline padding 7, no vertical padding, border
+      `#FFFFFF1A`; Figma: height 58, padding 8 12 8 8, border
+      `rgba(255,255,255,0.08)`;
+    - app icon `linear-gradient(in oklab 135deg, #4AA8F0 0%, #6FD9A0 100%)`
+      with a 26 × 22 logo; Figma: "Verification" conic gradient with a
+      28 × 28 logo;
+    - trailing icon stroke 1.6; Figma: 1;
+    - primary button `#6385F0` with border `#FFFFFF1A`; Figma: `#1F89FA`, no
+      border;
+    - secondary button border `#0000001A`; Figma: no border.
+15. Title line height for 28 px titles: 36 on Paper screens and on the Paper
+    sheets; 34 on the welcome card (11) and in the Figma sheet CSS. The
+    Figma sheet suggests 34 may be the team's value. Confirm in Figma.
+16. Borders on white buttons and dark surfaces: Paper now has 1 px
+    `#0000001A` and `#FFFFFF1A`. The Figma sheet CSS has no border on its
+    card and buttons. Check other Figma frames before keeping these borders.
 
 ### Things the designs do not define
 
@@ -1026,7 +1096,8 @@ family name (for example `Inter-Regular`, `Inter-SemiBold`), because
 14. Sheet backdrop blur radius and tint alpha for a real blurred screen.
     Paper has only drawn stand-ins (blobs with `blur(28px)`–`blur(40px)`) and
     the `#28283066` tint on 05 and 07.
-15. Pill item row radius: Paper has 20 on a 56 high row. Confirm in Figma.
+15. Weight 500 appears once in Figma (`font/size/title/100`, a hidden button
+    sub-label). This document keeps two weights until a visible use exists.
 
 ### Places where the designs assume something the app does not do
 
