@@ -78,6 +78,9 @@ export default function OnboardingBackground({lift, opacity, debugSpeed = 1}) {
       canvas.translate(f.centre[0], f.centre[1]);
       canvas.rotate(ROTATE_DEG, 0, 0);
       canvas.translate(-BOX_W / 2, -BOX_H / 2);
+      // The mockup box clips its fields; without the clip, large fields leak past the mask edge.
+      // No anti-aliasing: the mask is 0 at the box edge, and an AA edge left a thin visible line.
+      canvas.clipRect(Skia.XYWHRect(0, 0, BOX_W, BOX_H), 1, false);
 
       const layer = Skia.Paint();
       layer.setAlphaf(GLOW_OPACITY);
@@ -85,7 +88,7 @@ export default function OnboardingBackground({lift, opacity, debugSpeed = 1}) {
 
       const basePaint = Skia.Paint();
       basePaint.setColor(col(f.base, 1));
-      canvas.drawRect(Skia.XYWHRect(0, 0, BOX_W, BOX_H), basePaint);
+      canvas.drawPaint(basePaint);
 
       for (let k = 0; k < FIELDS.length; k++) {
         const fx = FIELDS[k];
@@ -115,7 +118,7 @@ export default function OnboardingBackground({lift, opacity, debugSpeed = 1}) {
           Skia.Matrix().translate(BOX_W / 2, BOX_H / 2).scale(263, 305),
         ),
       );
-      canvas.drawRect(Skia.XYWHRect(0, 0, BOX_W, BOX_H), mask);
+      canvas.drawPaint(mask);
       canvas.restore(); // glow layer
       canvas.restore(); // glow transform
 

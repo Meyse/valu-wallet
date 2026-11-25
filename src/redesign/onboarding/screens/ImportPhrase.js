@@ -3,7 +3,8 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {Camera} from 'react-native-vision-camera';
-import Clipboard from 'react-native/Libraries/Components/Clipboard/Clipboard';
+// Same clipboard API as the rest of the app (SendWizardRecipient, AddressBook).
+import {Clipboard} from 'react-native';
 import ValuButton, {TextLink} from '../../components/ValuButton';
 import {DenseScreen, ErrorText, Heading, PillButton, TopBar} from '../../components/Layout';
 import {Grid, Segmented, WordSlot} from '../../components/PhraseGrid';

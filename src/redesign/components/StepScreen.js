@@ -21,7 +21,7 @@ export default function StepScreen({onBack, done, icon, title, body, next, actio
         <View style={styles.spacer} />
         <View style={{width: column, alignSelf: 'center'}}>
           <DoneSteps steps={done} />
-          <View style={styles.current}>
+          <View style={[styles.current, {width: Math.min(342, width - 60)}]}>
             {icon}
             <Text style={[type.title, {color: colors.text}]} accessibilityRole="header">
               {title}
@@ -44,5 +44,6 @@ const styles = StyleSheet.create({
   spacer: {flex: 1, minHeight: 24},
   // Paper R07: done steps end 19 above y 408; the current block starts at 448 (gap 40).
   current: {gap: 16, marginTop: 40, marginBottom: 32},
-  actions: {marginTop: 39, gap: 6},
+  // R07 has a button and a 48-high link; R09 keeps the same button position without the link.
+  actions: {marginTop: 39, gap: 6, minHeight: 50 + 6 + 48},
 });

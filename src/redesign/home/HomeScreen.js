@@ -57,7 +57,7 @@ function CoinTile({coin}) {
       {verus ? (
         <Icon name="verusCoin" />
       ) : (
-        <Text style={[type.labelSmall, {color: colors.text}]}>{(coin.display_ticker ?? coin.id).slice(0, 1)}</Text>
+        <Text style={[type.labelSmall, {color: colors.text}]}>{(coin.display_ticker ?? coin.id).slice(0, 1).toUpperCase()}</Text>
       )}
     </View>
   );

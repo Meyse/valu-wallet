@@ -1,8 +1,9 @@
 // Redesigned onboarding (R01 to R15). The shared background is mounted once here, behind the
 // stack, so its clock never resets on navigation. Screens have transparent cards.
-import React, {useEffect, useRef} from 'react';
+import React, {useEffect, useMemo, useRef} from 'react';
 import {StatusBar, StyleSheet, View} from 'react-native';
 import {createStackNavigator} from '@react-navigation/stack';
+import {ThemeProvider, useTheme} from '@react-navigation/native';
 import {colors} from '../theme/tokens';
 import OnboardingBackground, {useBackgroundControls} from '../components/OnboardingBackground';
 import {BackdropSourceContext} from '../components/Sheet';
@@ -91,6 +92,12 @@ function Screens({background}) {
 
 export default function OnboardingNavigator({navigation}) {
   const root = useRef(null);
+  const theme = useTheme();
+  // The stack paints the theme background (light grey in this app); it must not cover the gradient.
+  const clearTheme = useMemo(
+    () => ({...theme, dark: true, colors: {...theme.colors, background: 'transparent'}}),
+    [theme],
+  );
   const background = useBackgroundControls();
   useDeeplinkForward(navigation);
 
@@ -101,7 +108,9 @@ export default function OnboardingNavigator({navigation}) {
         <StatusBar barStyle="light-content" />
         <View ref={root} collapsable={false} style={styles.root}>
           <OnboardingBackground lift={background.lift} opacity={background.opacity} />
-          <Screens background={background} />
+          <ThemeProvider value={clearTheme}>
+            <Screens background={background} />
+          </ThemeProvider>
         </View>
       </OnboardingProvider>
     </BackdropSourceContext.Provider>

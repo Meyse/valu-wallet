@@ -1,7 +1,8 @@
 // R03e Import private key and R03f invalid key.
 import React, {useEffect, useRef, useState} from 'react';
 import {Platform, StyleSheet, TextInput, View} from 'react-native';
-import Clipboard from 'react-native/Libraries/Components/Clipboard/Clipboard';
+// Same clipboard API as the rest of the app (SendWizardRecipient, AddressBook).
+import {Clipboard} from 'react-native';
 import ValuButton, {TextLink} from '../../components/ValuButton';
 import {DenseScreen, ErrorText, Heading, PillButton, TopBar} from '../../components/Layout';
 import {checkPrivateKey} from '../../logic/importValidation';
