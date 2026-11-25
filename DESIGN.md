@@ -21,6 +21,30 @@ language.
   proposal.
 - A value that the designs do not show is not in this document. It is in
   [Open points](#open-points). Do not invent it.
+- Onboarding reference: Paper page "Onboarding - real flow" (`p-2-0`,
+  artboards R01–R18) shows the real onboarding flow in the team's look. The
+  flow note is `~/.claude/orchestrator/notes/valu-wallet-redesign-onboarding-flow.md`.
+  Page `p-1-0` stays the source of the look; `p-2-0` is the source of the
+  onboarding screens, steps and copy.
+- Page `p-1-0` changed after the first version of this document (same day,
+  2026-11-25). All 1 px `#000000` borders became `#FFFFFF1A` (surfaces) or
+  `#0000001A` (white buttons), and a new artboard "Sheet - Send attributes"
+  appeared. This document uses the current values. The author of the change
+  is not recorded in Paper.
+
+## Decisions
+
+Decisions by Max. Each one replaces any earlier text or open point on the
+same subject.
+
+| Date | Decision |
+| --- | --- |
+| 2026-11-25 | Sheets and alerts: when a sheet or an alert is open, the screen behind it is completely blurred and darkened. The sheet card must stand apart from the background. The card has a thin gradient border, as in the design team's Figma file. See [Sheet and alert](#sheet-and-alert). |
+| 2026-11-25 | Onboarding background: one shared gradient background behind the whole onboarding. Its colour changes slowly with time. It does not depend on the step. The first glow sits 67 px higher than in the Paper still of "Onboarding 02". See [Onboarding background](#onboarding-background). |
+| 2026-11-25 | Tabs: the redesign keeps the design team's 4 tabs: Home, Credentials, Money, Agents. Which current app functions go to which tab is still open. |
+| 2026-11-25 | Font: the app bundles Inter. Status on 2026-11-25: no Inter font file is in any local branch yet (checked `main`, `origin/main`, `claude/rn-upgrade`, `claude/redesign-onboarding-mockup`). |
+| 2026-11-25 | Gradient drawing: a drawing library for the gradient is approved. The library is chosen at build time. |
+| 2026-11-25 | Onboarding flow: the real flow is Paper page `p-2-0` "Onboarding - real flow" with its flow note. It adds one colour that the design team does not have: error red `#FF6B6B`. This colour is an addition by Max's side, not by the design team. |
 
 ### Artboards
 
@@ -39,6 +63,7 @@ language.
 | Onboarding 11 - Home | 393 × 852 | Icon buttons, welcome card, activity row, tab bar |
 | Crypto - Empty balance | 393 × 852 | Balance display (zero), asset row, action grid, tab bar |
 | Money - With balance | 393 × 852 | Balance display ($85.27), asset row, action grid, tab bar |
+| Sheet - Send attributes | 393 × 852 | Sheet over a blurred background: icon, title, body, pill item row, two buttons (added to `p-1-0` after the first import, see Authority) |
 
 The status bar, the home indicator, the keyboard and the device corner radius
 (62 px on 402-wide artboards, 55 px on 393-wide artboards) are iOS system
@@ -48,11 +73,11 @@ into tokens.
 ## Character
 
 - Dark only. Every artboard uses a near-black neutral background (`#292929`).
-- One colour moment per screen. The onboarding screens use a large, soft
-  gradient glow at the top. The tab screens use no glow; small coloured icon
-  discs carry the colour.
-- Flat neutral surfaces with a 1 px black outline. No shadows anywhere
-  (`find_nodes` for `boxShadow` returns 0 nodes).
+- One colour moment per screen. The onboarding screens share one large, soft,
+  slowly changing gradient background at the top. The tab screens use no
+  glow; small coloured icon discs carry the colour.
+- Flat neutral surfaces with a thin 1 px light outline (`#FFFFFF1A`). No
+  shadows anywhere (`find_nodes` for `boxShadow` returns 0 nodes).
 - Large rounded shapes: 24 px on buttons, cards, panels and sheets; full
   pills on the tab bar and icon buttons.
 - One typeface (Inter), two weights (400 and 600), no letter spacing.
@@ -86,7 +111,8 @@ digits (for example `#00000052` is black at 32 %).
 | `--color-text-secondary` | `#EBEBEB` | Secondary text: subtitles, meta, tab labels, step labels | 03, 04, 06, 09, 11, Crypto, Money |
 | `--color-text-muted` | `#737373` | De-emphasised part of an identity name | ".valuid@" suffix on 09 |
 | `--color-text-on-primary` | `#3D3D3D` | Label on the primary button | All primary buttons |
-| `--color-border` | `#000000` | 1 px outline on buttons, cards, panels, sheets | Primary button, panel, welcome card, action cards, sheet |
+| `--color-border` | `#FFFFFF1A` | 1 px outline on dark surfaces and the blue sheet button | Glass panel, welcome card, action cards, sheets, pill item row, "Send" button |
+| `--color-border-on-light` | `#0000001A` | 1 px outline on the white primary button | All `#FAFAFA` buttons |
 | `--color-border-subtle` | `#FFFFFF14` | 1 px outline on the tab bar | Tab bar |
 
 Two opacity values make text quieter. The designs apply them as `opacity` on
@@ -110,6 +136,8 @@ The zero balance uses a colour with alpha, not node opacity: the digits
 | `--color-success` | `#42DF5E` | Completed or confirmed state | Key icon on 10, check-badge icon on welcome card (11), smile icon on 09 |
 | `--color-success-soft` | `#90F993` | Small link icon next to the balance label | "Balance link icon" on Money |
 | `--color-highlight` | `#FFD56F` | The yellow step | "Connect account" step icon on 06, 07 |
+| `--color-sheet-confirm` | `#6385F0` | Confirm button in a sheet | "Send" on "Sheet - Send attributes" |
+| `--color-error` | `#FF6B6B` | Error text and error state. Addition by Max's side, not by the design team (decision 2026-11-25). | Error states on `p-2-0` (R05, R06, R13, R18) |
 
 ### Category colours (icon discs)
 
@@ -123,7 +151,9 @@ The zero balance uses a colour with alpha, not node opacity: the digits
 
 ### Alert and overlay colours
 
-The alert follows the iOS system alert. Its colours are light on purpose.
+The light alert on 05 and 07 follows the iOS system alert. Its colours are
+light on purpose. Keep these values for reference only: in-app questions use
+[Sheet and alert](#sheet-and-alert), and the OS draws permission prompts.
 
 | Proposed token | Value | Role |
 | --- | --- | --- |
@@ -137,7 +167,7 @@ The alert follows the iOS system alert. Its colours are light on purpose.
 ### Brand gradient stops
 
 The app avatar on "Activity row" (11) uses a conic gradient. The glow images
-use the same hues (see [Gradient glow](#gradient-glow)).
+use the same hues (see [Onboarding background](#onboarding-background)).
 
 ```
 conic-gradient(in oklab from 90deg at 50% 50%,
@@ -155,12 +185,68 @@ conic-gradient(in oklab from 90deg at 50% 50%,
 | `--color-brand-blue` | `#51A4FD` |
 | `--color-brand-sky` | `#81D2E4` |
 
-## Gradient glow
+The service avatar in the sheet's pill item row uses a second gradient:
+`linear-gradient(in oklab 135deg, #4AA8F0 0%, #6FD9A0 100%)`, 40 × 40,
+radius 12. The Activity avatar on Home uses the conic gradient above. See
+Open points.
 
-The designs have no gradient header bar. The "gradient header" is a large,
-soft, blurred glow at the top of the onboarding screens.
+## Onboarding background
 
-### What it is
+Decision of 2026-11-25. This section replaces the earlier rule "the glow
+colour follows the step".
+
+### Model
+
+- One background sits behind all onboarding screens. It is mounted once and
+  does not restart when the user moves between screens.
+- Its state is a function of time only, not of the route or the step.
+- Four colour sets, taken from the four Paper glow images (see
+  [Source images](#source-images)). Order and cycle:
+  02 Take control → 06 Connect account → 09 Accept credentials → 04 Device key
+  → back to 02.
+- Cycle length: 180 s. Each set has 45 s, with a 15 % dwell on each set.
+  The cycle wraps with no jump.
+- Colours mix in OKLCH (in React Native, LAB is the closest available), so
+  blue to yellow passes through cyan and green, never grey.
+- Colour, glow position and field motion use one clock.
+- Reduced motion: a still image with the 02 colours.
+- No glow on the camera screen (08) and on a sheet over Home (10): fade the
+  background out with an opacity change.
+- Accepted by Max: the first glow (the 02 set) sits 67 px higher than in the
+  Paper still of "Onboarding 02". Its centre is at y 79, the same as the 04 and
+  09 sets. Reason: at Paper's 02 position the step labels on 06 and 09 drop to
+  contrast 1.6 when the 02 colours pass behind them.
+
+### Colour sets
+
+The glow is rebuilt from 11 soft radial fields with one shared layout. Only
+their colours change. Base colour and glow centre (screen coordinates on a
+402 × 874 frame) for each set:
+
+| Set | From artboard | Hues | Base colour | Glow centre (x, y) | Hex overlay (left, top) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 02 Take control | teal, blue, green | `rgb(77,240,168)` `#4DF0A8` | 153, 79 | 117, 162 |
+| 2 | 06 Connect account | yellow, green | `rgb(123,246,125)` `#7BF67D` | 226, 60 | 134, 45 |
+| 3 | 09 Accept credentials | light green | `rgb(102,245,136)` `#66F588` | 139, 79 | 13, 56 |
+| 4 | 04 Device key | green, cyan, blue | `rgb(53,209,238)` `#35D1EE` | 139, 79 | 176, 160 |
+
+The 11 field positions and the 11 field colours per set are in the `DATA`
+object of the accepted mockup:
+`docs/redesign/mockups/onboarding-first-screen.html` on branch
+`claude/redesign-onboarding-mockup` (commit `aadd02bf`), with the note
+`docs/redesign/mockups/onboarding-gradient-motion.md`. Copy the values from
+there. Do not retype them by eye.
+
+Motion: the mockup offers four styles on the same clock (Slow drift,
+Breathing, Flowing, Colour only). Its default is Slow drift. The final style
+is not decided (see Open points).
+
+### Source images
+
+The Paper artboards hold the glow as stills. These stills are the source of
+the four colour sets.
+
+#### What a still is
 
 - A raster PNG, 1228 × 1398 px (2× of the 614 × 699 node). It is not a CSS
   gradient.
@@ -168,7 +254,7 @@ soft, blurred glow at the top of the onboarding screens.
   background. The corners have alpha 0. The centre has alpha about 230–240.
 - The screen background (`#292929`) shows through the transparent area.
 
-### Placement (the same on every screen that has it)
+#### Placement of the stills
 
 - Outer frame "Gradient glow": 630 × 678, `position: absolute`, content
   centred.
@@ -187,7 +273,7 @@ soft, blurred glow at the top of the onboarding screens.
 The sampled colours are 25 × 25 px averages read from the PNG files. Use them
 to describe the glow. Do not build the glow from them as stops.
 
-### Hex overlay
+#### Hex overlay
 
 Screens 02, 04, 06 and 09 add a "Hex overlay" over the glow: a 186 × 206 frame
 with `mix-blend-mode: overlay`. It holds an SVG hexagon outline (values read
@@ -199,17 +285,21 @@ opacity 0.5, Gaussian blur `stdDeviation="50"`, fill `#FAFAFA`, stroke
 
 ### Rules
 
-- Do: use the glow only on onboarding and step screens.
-- Do: match the glow hue to the step colour. The designs pair the blue step
-  icon (`#1F89FA`, Device key) with blue-green glows A/B, the yellow step icon
-  (`#FFD56F`, Connect account) with yellow-green glow C, and the green icon
-  (`#42DF5E`, Accept credentials) with green glow D. This pairing is an
-  inference from the four screens.
-- Do: ship the PNG files as image assets. Keep the rotation and the offset.
+- Do: use the onboarding background only on onboarding screens.
+- Do: mount it once behind the onboarding navigator, so its clock never
+  resets on navigation.
+- Do: drive colour from time only. Do not tie a colour set to a screen or a
+  step.
+- Do: draw it with the approved drawing library (chosen at build time). The
+  mockup note describes a build with Reanimated and `react-native-svg` only;
+  use it as a reference, not as a choice.
 - Do not: put the glow on tab screens (Home, Crypto, Money have none).
 - Do not: put text directly on the brightest part of the glow. In the designs,
   only the app icon tile sits on the glow; text starts below it.
 - Do not: replace the glow with a linear gradient bar.
+- Do not: ship the four Paper PNG stills as the moving background. They are
+  sources for the colour sets only. One still may serve as the
+  reduced-motion image.
 
 ## Typography
 
@@ -292,6 +382,7 @@ These differ. See [Open points](#open-points).
 | --- | --- | --- |
 | `--radius-xs` | 4 px | Scanner corner marks |
 | `--radius-sm` | 12 px | Avatar tile (40 × 40) |
+| `--radius-md` | 20 px | Pill item row in a sheet (56 high) |
 | `--radius-lg` | 24 px | Primary button, glass panel, card, action card, list row, sheet, alert button |
 | `--radius-field` | 30 px | Text field (renders as a pill) |
 | `--radius-icon-tile` | 32 px | App icon tile (96 × 96) |
@@ -303,28 +394,37 @@ a full pill. Keep 24 so that the button matches the cards.
 
 ## Borders
 
-- 1 px solid `#000000` on: primary button, glass panel, welcome card, action
-  cards, sheet. The black outline separates a lighter or same-tone surface from
-  the `#292929` background.
+- 1 px solid `#FFFFFF1A` (`--color-border`) on: glass panel, welcome card,
+  action cards, sheets, the pill item row and the blue sheet button. The light
+  outline separates a same-tone surface from the `#292929` background.
+- 1 px solid `#0000001A` (`--color-border-on-light`) on every white
+  (`#FAFAFA`) button.
 - 1 px solid `#FFFFFF14` on the tab bar.
+- Sheet card: a thin gradient border by decision of 2026-11-25. Paper shows
+  it flat (`#FFFFFF1A`). The gradient stops must come from Figma. See
+  [Sheet and alert](#sheet-and-alert) and Open points.
 - Text field: 1 px solid. Focused: `#1F89FA`. Not focused: `#FFFFFF`.
 - Scanner corner marks: 3 px solid `#FFFFFF` on two sides, 18 × 18, radius
   4 px on the outer corner.
-- List rows ("Activity row") and alerts have no border.
+- List rows ("Activity row") and the light alerts on 05 and 07 have no border.
 
 ## Shadows, blur and depth
 
 - No shadows. Do not add `shadow*` or `elevation`.
-- Depth comes from fills and the black outline.
-- Blur appears in three places:
+- Depth comes from fills and the thin outline.
+- Blur appears in four places:
   - Glass panel (03): `backdrop-filter: blur(32px)` on `#292929B3`.
-  - Blurred background (10): four soft blobs with `filter: blur(28px–30px)` on
+  - Behind the sheet on 10: four soft blobs with `filter: blur(28px–30px)` on
     `#26272A`. Blobs: `#6B5848` 130 × 150 at 80 %, `#3A3F44` 280 × 60 at 70 %,
-    `#25415A` 90 × 100 at 70 %, `#4A2C3A` 90 × 90 at 70 %. This stands in for
-    a blurred view of the screen behind the sheet.
-  - Hex overlay: SVG Gaussian blur (see [Gradient glow](#gradient-glow)).
-- The tab bar and the alert have alpha fills but no backdrop blur in the
-  designs.
+    `#25415A` 90 × 100 at 70 %, `#4A2C3A` 90 × 90 at 70 %.
+  - Behind the sheet on "Sheet - Send attributes": three soft blobs on
+    `#1C1C1F`: `#232A3D` 200 × 220, blur 40 px, 80 %; `#1F2A22` 120 × 120,
+    blur 40 px, 70 %; `#2B2B30` 200 × 90, blur 36 px, 80 %.
+  - Hex overlay: SVG Gaussian blur (see [Onboarding background](#onboarding-background)).
+- The blobs are drawn stand-ins for "the real screen behind, blurred and
+  darkened" (decision of 2026-11-25). In code, blur the real screen. Do not
+  draw blobs.
+- The tab bar has an alpha fill but no backdrop blur in the designs.
 
 ## Icons
 
@@ -372,16 +472,18 @@ Sizes are in px (pt/dp). Tokens refer to the tables above.
 - Anatomy: a filled container with one centred label.
 - Size: height 50. Width fills the content column (362, 330, 313, 298 or 295
   in the designs).
-- Tokens: fill `--color-primary` (`#FAFAFA`), border 1 px `--color-border`,
-  radius `--radius-lg` (24), label `--text-label` 16 / 19 / 600 in
-  `--color-text-on-primary` (`#3D3D3D`).
+- Tokens: fill `--color-primary` (`#FAFAFA`), border 1 px
+  `--color-border-on-light` (`#0000001A`), radius `--radius-lg` (24), label
+  `--text-label` 16 / 19 / 600 in `--color-text-on-primary` (`#3D3D3D`).
 - Position: at the bottom of the screen above the home indicator, or at the
   bottom of a card, panel or sheet.
 - States in the designs: default only. On 05 the button shows through the
   dim overlay; that is not a disabled style.
 - Do: use one primary button per screen.
 - Do: write a short verb label ("Enable", "Accept", "Close", "Dismiss").
-- Do not: colour the primary button blue. Blue is for focus and selection.
+- Do not: colour the screen-level primary button blue. Blue is for focus,
+  selection and the confirm button inside a sheet (see
+  [Sheet and alert](#sheet-and-alert)).
 - Do not: invent pressed, disabled or loading states. See Open points.
 
 ### Text button
@@ -405,13 +507,15 @@ Sizes are in px (pt/dp). Tokens refer to the tables above.
   edges, top 67.
 - Do not: give it a border.
 
-### Alert buttons
+### System alert buttons (05, 07)
 
 - Anatomy: two equal buttons side by side.
 - Size: height 48, equal width (`flex: 1`), gap 8.
 - Tokens: radius 24; secondary fill `#78788052` with label `#000000`;
   confirm fill `#0A72EA` with label `#FFFFFF`; label 17 / 22 / 600.
 - Order: negative left ("No"), positive right ("Yes").
+- These buttons belong to the light, iOS-style alert on 05 and 07. In-app
+  sheets use the buttons in [Sheet and alert](#sheet-and-alert).
 
 ### Text field
 
@@ -434,7 +538,8 @@ Sizes are in px (pt/dp). Tokens refer to the tables above.
 - Size: width 362 (20 px gutters), padding 32, gap 24 between the field group
   and the button. Inside the field group: gap 16; title and subtitle gap 8.
 - Tokens: fill `--color-surface-glass` (`#292929B3`), `backdrop-filter:
-  blur(32px)`, border 1 px `--color-border`, radius `--radius-lg`.
+  blur(32px)`, border 1 px `--color-border` (`#FFFFFF1A`), radius
+  `--radius-lg`.
 - Title: `--text-label` 16 / 19 / 600 white, centred. Subtitle: `--text-body`
   14 / 18 / 400 `#EBEBEB`, centred.
 - Seen on: 03 Sign in.
@@ -461,42 +566,62 @@ bar.
 - On 09 the block is different: the step name is a small heading
   (16 / 19 / 600 white) above a 28 px identity name, then the body. There is
   no separate next-steps list because this is the last step.
-- Do: keep the step order fixed: Device key, Connect account, Accept
-  credentials.
+- Do: take the real step order and copy from Paper page `p-2-0` "Onboarding -
+  real flow". The step names on `p-1-0` (Device key, Connect account, Accept
+  credentials) are the team's sample flow.
 - Do: colour only the 48 px icon of the current step.
 - Do not: use a coloured bar, a filled number badge, or a left edge marker for
   the current step.
 
-### Alert (dialog)
+### Sheet and alert
 
-- Anatomy: a dim overlay over the whole screen; a centred card with a title,
-  a message and two buttons.
-- Size: width 298, left 52 on a 402 frame; padding 16; gap 16 between text and
-  buttons; text block gap 8 and inline padding 4.
-- Tokens: `--color-scrim` (`#28283066`) overlay; `--color-alert-surface`
-  (`#CDCDD0EB`), radius `--radius-alert` (34); title 17 / 22 / 600 and message
-  17 / 22 / 400 in `#000000`; [Alert buttons](#alert-buttons).
-- Seen on: 05 (biometric prompt), 07 (camera permission).
-- The alert copies the look of the iOS system alert. On iOS the real system
-  alert appears for permission prompts. See Open points.
-- Do: use it only for a yes/no question that blocks the flow.
-- Do not: put more than two buttons in it.
+One component for every in-app sheet and in-app alert. Decision of
+2026-11-25: the screen behind is completely blurred and darkened, and the
+card stands apart with a thin gradient border.
 
-### Bottom sheet (modal)
+Sources (read twice from Paper on 2026-11-25): "Sheet - Send attributes",
+"Onboarding 10 - Key accepted", and the overlays on "Onboarding 05 - Device
+key alert" and "Onboarding 07 - Camera alert". Reference screenshot from the
+design team's Figma: the "Send selected attributes?" sheet.
 
-- Anatomy: a card at the bottom of the screen with a 48 px icon, a title, a
-  body and a primary button.
-- Size: width 343, left 30, top 510 on a 402 × 874 frame; padding 24; gap 48
-  between content and button; gap 16 between icon and text, and between title
-  and body.
-- Tokens: fill `--color-surface` (`#292929`), border 1 px `--color-border`,
-  radius `--radius-lg` (24) on all four corners; title 28 / 36 / 600 white;
-  body 14 / 18 / 400 white; icon 48 px `--color-success`.
-- Background: the blurred background described under
-  [Shadows, blur and depth](#shadows-blur-and-depth).
-- The sheet floats: it does not touch the screen edges or the bottom. It has
-  no drag handle.
-- Seen on: 10 Key accepted.
+Anatomy, back to front:
+
+1. Backdrop: the current screen, blurred and darkened over its full area.
+2. Card, floating (it does not touch the screen edges or the bottom; no drag
+   handle).
+3. Content column, gap 16: icon, title, body, optional pill item row.
+4. Button column, gap 8: primary button, optional secondary button.
+   Gap 48 between the content column and the button column.
+
+| Part | Values in Paper | Token |
+| --- | --- | --- |
+| Backdrop tint | 05 and 07: `#28283066` over the full screen, no blur. Sheet artboards: an opaque, blurred stand-in (`#26272A` with blobs on 10; `#1C1C1F` with blobs on "Sheet - Send attributes"), see [Shadows, blur and depth](#shadows-blur-and-depth). | `--color-scrim` |
+| Backdrop blur | Not drawable in Paper. The stand-in blobs use `blur(28px)` to `blur(40px)`. | — (Open point) |
+| Card | Width 343; padding 24; fill `#292929`; radius 24; on "Sheet - Send attributes" at left 30, top 366 on a 393 × 852 frame; on 10 at left 30, top 510 on a 402 × 874 frame | `--color-surface`, `--radius-lg`, `--spacing-6` |
+| Card border | 1 px solid `#FFFFFF1A` in Paper (flat). Decision: thin gradient border; stops from Figma. | `--color-border` until the gradient is known |
+| Icon | 48 × 48 outline icon. "Send attributes": white `#FFFFFF`, stroke 1.8, round joins. 10: `#42DF5E` key, stroke 2. | `--color-text` or a semantic colour |
+| Title | 28 / 36 / 600, `#FFFFFF`, width 295 | `--text-title` |
+| Body | 14 / 18 / 400, `#FFFFFF` (width 270 on "Send attributes", 295 on 10) | `--text-body` |
+| Pill item row | 295 × 56; border 1 px `#FFFFFF1A`; radius 20; no fill; inline padding 7; gap 12. Leading: 40 × 40 avatar, radius 12, `linear-gradient(in oklab 135deg, #4AA8F0 0%, #6FD9A0 100%)`, white logo glyph 26 × 22. Label: 16 / 19 / 600 white, fills the row. Trailing: 24 × 24 lock icon, stroke `#EBEBEB` 1.6. | `--radius-md`, `--color-border`, `--text-label` |
+| Primary button (in a sheet with two buttons) | 295 × 50; fill `#6385F0`; border 1 px `#FFFFFF1A`; radius 24; label 16 / 19 / 600 `#FFFFFF` ("Send") | `--color-sheet-confirm` |
+| Secondary button | 295 × 50; fill `#FAFAFA`; border 1 px `#0000001A`; radius 24; label 16 / 19 / 600 `#3D3D3D` ("Cancel") | `--color-primary`, `--color-border-on-light`, `--color-text-on-primary` |
+| Single button (sheet with one action) | 295 × 50 white button ("Close" on 10), same values as the secondary button | as above |
+
+Rules:
+
+- Do: blur and darken the real screen behind. The backdrop covers the status
+  bar area too.
+- Do: put the positive action on top (blue) and the cancel action under it
+  (white).
+- Do: use the pill item row to name the party or item that the action
+  concerns.
+- Do: use this component for in-app yes/no questions instead of the light
+  alert on 05 and 07.
+- Do not: draw the blobs from the Paper stand-ins.
+- Do not: put more than two buttons in a sheet.
+- Do not: build OS permission prompts (camera, Face ID). The OS draws them.
+  The light alert on 05 and 07 copies the iOS look; its values are in
+  [Alert and overlay colours](#alert-and-overlay-colours) for reference only.
 
 ### Card (welcome card)
 
@@ -614,7 +739,8 @@ This block is a proposal. It is not in the Paper file and not in the app.
   --color-text-muted: #737373;
   --color-text-placeholder: #FFFFFF66;
   --color-text-on-primary: #3D3D3D;
-  --color-border: #000000;
+  --color-border: #FFFFFF1A;
+  --color-border-on-light: #0000001A;
   --color-border-subtle: #FFFFFF14;
 
   /* Brand and accent */
@@ -623,6 +749,8 @@ This block is a proposal. It is not in the Paper file and not in the app.
   --color-success: #42DF5E;
   --color-success-soft: #90F993;
   --color-highlight: #FFD56F;
+  --color-sheet-confirm: #6385F0;
+  --color-error: #FF6B6B; /* addition by Max's side, not the design team */
 
   /* Categories */
   --color-action-receive: #1F89FA;
@@ -682,6 +810,7 @@ This block is a proposal. It is not in the Paper file and not in the app.
   /* Radius */
   --radius-xs: 4px;
   --radius-sm: 12px;
+  --radius-md: 20px;
   --radius-lg: 24px;
   --radius-field: 30px;
   --radius-icon-tile: 32px;
@@ -722,7 +851,9 @@ Proposal only. No app code is written by this document.
 - `ios/verusMobile/Info.plist` sets `UIUserInterfaceStyle` to `Light`.
   `App.js` sets `StatusBar barStyle="dark-content"`.
 - Bundled text fonts are Source Sans Pro and Avenir
-  (`android/app/src/main/assets/fonts`, `UIAppFonts`). Inter is not bundled.
+  (`android/app/src/main/assets/fonts`, `UIAppFonts`). Decision of
+  2026-11-25: the app bundles Inter. On 2026-11-25 no Inter font file is in
+  this branch yet.
 - `src/containers/RootStack/HomeTabScreens/HomeTabScreens.js` defines six tabs
   (Wallet, Services, Identity, Settings, Convert, Scan) with Feather icons.
 - `package.json` has `react-native-svg` 15.12.1 and `react-native-paper`
@@ -759,10 +890,11 @@ Build the theme from `MD3DarkTheme` with `version: 3`.
 | `colors.surfaceVariant` | `--color-surface-card` | `#1F1F1F` | Cards |
 | `colors.onSurface`, `onBackground` | `--color-text` | `#FFFFFF` | |
 | `colors.onSurfaceVariant` | `--color-text-secondary` | `#EBEBEB` | |
-| `colors.outline` | `--color-border` | `#000000` | |
+| `colors.outline` | `--color-border` | `#FFFFFF1A` | |
 | `colors.outlineVariant` | `--color-border-subtle` | `#FFFFFF14` | |
 | `colors.secondaryContainer` | `--color-tab-active` | `#3F3F3F` | Active pill in Paper `BottomNavigation` |
-| `colors.backdrop` | `--color-scrim` | `#28283066` | `Modal` and `Dialog` backdrop |
+| `colors.backdrop` | `--color-scrim` | `#28283066` | `Modal` and `Dialog` tint. The blur comes on top (see Other mappings). |
+| `colors.error` | `--color-error` | `#FF6B6B` | Addition by Max's side |
 | `colors.elevation.level0`–`level5` | `--color-surface` | `#292929` | The designs have no elevation tint. |
 | `roundness` | — | (do not rely on it) | Paper derives component radii from `roundness` with its own multipliers. Set each radius from the radius tokens in the shared component. |
 
@@ -791,30 +923,31 @@ Use `configureFonts({ config: { ... } })` with MD3 variants:
 Set `letterSpacing: 0` on every variant. MD3 defaults have non-zero
 letter spacing.
 
-Inter must be bundled before this works. On Android, a custom font weight
-needs its own file and family name (for example `Inter-Regular`,
-`Inter-SemiBold`), because `fontWeight` alone does not select the file. This
-is an asset change, so it needs a decision.
+Inter is bundled by decision of 2026-11-25. Bundle the Regular (400) and
+SemiBold (600) files. On Android, a custom font weight needs its own file and
+family name (for example `Inter-Regular`, `Inter-SemiBold`), because
+`fontWeight` alone does not select the file.
 
 ### Other mappings
 
 - Status bar: `light-content` on every redesigned screen (all designs are
   dark).
-- Gradient glow: copy the four PNG files from the Paper file into
-  `src/images/` and render them with `Image` inside an absolutely positioned,
-  rotated `View` (`transform: [{ rotate: '-21.57deg' }]`). `react-native-svg`
-  cannot reproduce the grain.
-- Glass panel and sheet background blur: there is no blur library. Without
-  one, use the solid fallback (`#292929B3` without blur, or `#292929`).
-  Adding a blur library is a dependency change.
+- Onboarding background: one component, mounted once behind the onboarding
+  navigator (screens get `cardStyle: { backgroundColor: 'transparent' }`).
+  Draw it with the approved drawing library; the library is chosen at build
+  time. Follow [Onboarding background](#onboarding-background) and the
+  mockup note for the clock, the colour sets and reduced motion.
+- Sheet and alert backdrop: blur the real screen behind and add the
+  `--color-scrim` tint. The app has no blur library today. Choosing one is a
+  dependency change at build time.
+- Glass panel: same blur need as the sheet backdrop.
 - Conic gradient avatar: `react-native-svg` has no conic gradient. Export the
   avatar as an image, or approximate it. Needs a decision.
 - Tab bar: React Navigation 6 bottom tabs with a custom `tabBar` component.
   Make the tab bar absolutely positioned and add bottom padding to each tab
   screen so content does not hide under it.
-- Alert: on iOS, use the system alert (`Alert.alert`) for permission
-  prompts. The design copies it. For an in-app question, build one shared
-  alert component from the alert tokens.
+- Alert: OS permission prompts are drawn by the OS. For every in-app
+  question, use the one shared [Sheet and alert](#sheet-and-alert) component.
 - Safe areas: the designs place content by absolute `top` values on a fixed
   frame. In code, use `react-native-safe-area-context` insets plus the
   spacing tokens. Do not hard-code `top: 67`.
@@ -842,8 +975,10 @@ is an asset change, so it needs a decision.
    1.5 px stroke, 1 px gap. Only its label is blue.
 7. Icon strokes vary: 1, 1.33, 1.5, 1.6 and 2 px. A single icon set needs one
    rule (proposal: 1.5 px at 24 px).
-8. Four different glow images and three glow positions. The rule "glow hue
-   follows the step colour" is an inference.
+8. Four different glow images and three glow positions in Paper. Resolved
+   for the build by the decision of 2026-11-25 (one time-driven background).
+   The flow note for `p-2-0` (decision 11 there) still says the colour
+   changes by stage. That text predates Max's decision and is replaced by it.
 9. Hex overlay is on 02, 04, 06, 09 but not on 03, 05, 07, and its position
    changes per screen.
 10. Artboard "Crypto - Empty balance" is named Crypto, but its tab bar shows
@@ -851,6 +986,15 @@ is an asset change, so it needs a decision.
 11. Scanner (08): the QR preview image (196 × 196 at left 62, top 375) does
     not line up with the corner marks (218 × 218 at left 92, top 328). This
     looks like an import error.
+12. Sheet card position: on "Sheet - Send attributes" (393 wide) the card is
+    at left 30 with width 343, so the right gap is 20 and the left gap is 30.
+    The values look copied from the 402-wide artboard 10.
+13. Three blues for actions: `#1F89FA` (accent), `#0A72EA` (system alert
+    confirm), `#6385F0` (sheet confirm). Decide whether the sheet confirm and
+    the accent are one colour.
+14. Two avatar gradients: conic brand gradient (Activity row on 11) and
+    `linear-gradient(135deg, #4AA8F0, #6FD9A0)` (pill item row). Confirm in
+    Figma which one the team uses.
 
 ### Things the designs do not define
 
@@ -871,25 +1015,39 @@ is an asset change, so it needs a decision.
    Dynamic Type / font scaling.
 10. Contrast: opacity 0.6 on `#EBEBEB` over `#292929` and the 40 %
     placeholder are low. Not measured in this document.
-11. Motion: transitions between steps, sheet entry, glow change.
+11. Motion: transitions between steps and sheet entry. The onboarding
+    background motion style is not decided: the mockup offers Slow drift
+    (its default), Breathing, Flowing and Colour only.
 12. Real icon set name. The icons are exported SVG paths, not a named
     library.
+13. Sheet card gradient border: Paper shows a flat 1 px `#FFFFFF1A` border on
+    every sheet. Max decided on a thin gradient border, as in the team's
+    Figma file. The gradient stops, angle and width must come from Figma.
+14. Sheet backdrop blur radius and tint alpha for a real blurred screen.
+    Paper has only drawn stand-ins (blobs with `blur(28px)`–`blur(40px)`) and
+    the `#28283066` tint on 05 and 07.
+15. Pill item row radius: Paper has 20 on a 56 high row. Confirm in Figma.
 
 ### Places where the designs assume something the app does not do
 
-1. Tabs: the designs show four tabs (Home, Credentials, Money, Agents). The
-   app has six (Wallet, Services, Identity, Settings, Convert, Scan). Scan
-   and Settings move to icon buttons on Home in the design.
+1. Tabs: decided on 2026-11-25. The redesign keeps the four tabs (Home,
+   Credentials, Money, Agents). Still open: how the app's six current tabs
+   (Wallet, Services, Identity, Settings, Convert, Scan) and their functions
+   map to these four. In the design, Scan and Settings are icon buttons on
+   Home.
 2. Onboarding: the designs sign in with Valu email and password, then a
    device key (Face ID), then connect an account by QR scan, then accept
    credentials into a "valuid@" identity. The app creates a local profile and
    wallet from a seed. A source search found no email sign-in, "Recover
    vault", "Agents" or "Credentials" tab. Product names in copy also differ:
-   "Valu Vault", "ValuMe", "Valu Verse".
-3. Fonts: the designs use Inter. The app bundles Source Sans Pro and Avenir.
+   "Valu Vault", "ValuMe", "Valu Verse". The real onboarding flow for the
+   app is on Paper page `p-2-0` (see Authority).
+3. Fonts: decided on 2026-11-25 that the app bundles Inter. Today the app
+   bundles Source Sans Pro and Avenir only.
 4. Theme: the app uses an MD2 light theme with a cyan primary (`#00a3ce`).
 5. Blur and conic gradients need libraries or images that the app does not
-   have.
+   have. A drawing library for the gradient is approved (2026-11-25); the
+   blur library is not decided.
 6. The alert on 05 asks to enable biometrics with app-styled copy; on iOS the
    Face ID permission prompt is a system alert with its own copy.
 
