@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Splash background shows the app icon centered over white -->
+<!-- Splash background shows the app icon centered over the dark splash colour -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item
-        android:drawable="@color/white"/>
+        android:drawable="@color/splash_background"/>
 
     <item
         android:width="200dp"

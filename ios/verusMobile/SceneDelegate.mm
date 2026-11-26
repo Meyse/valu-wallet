@@ -58,6 +58,10 @@
   UIView *rootView = [appDelegate.rootViewFactory viewWithModuleName:appDelegate.moduleName
                                                  initialProperties:appDelegate.initialProps
                                                      launchOptions:launchOptions];
+  // The splash colour (#292929), as the launch screen: no white frame before the first JS frame.
+  UIColor *splash = [UIColor colorWithRed:41 / 255.0 green:41 / 255.0 blue:41 / 255.0 alpha:1];
+  rootView.backgroundColor = splash;
+  self.window.backgroundColor = splash;
   UIViewController *rootViewController = [appDelegate createRootViewController];
   [appDelegate setRootView:rootView toRootViewController:rootViewController];
   self.window.rootViewController = rootViewController;

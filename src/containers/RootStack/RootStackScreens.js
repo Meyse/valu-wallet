@@ -13,6 +13,7 @@ import {useHoldOnboarding, useRedesignEnabled} from '../../redesign/state/redesi
 import RedesignOnboarding from '../../redesign/onboarding/OnboardingNavigator';
 import RedesignUnlock from '../../redesign/unlock/ReturningUser';
 import RedesignHome from '../../redesign/home/HomeShell';
+import RedesignSplash from '../../redesign/onboarding/RedesignSplash';
 
 const RootStack = createStackNavigator();
 
@@ -21,7 +22,8 @@ const RootStack = createStackNavigator();
 // The new screens use the old route names: deep-link and service screens reset the root stack to
 // 'SignedInStack', 'SignedOutStack' or 'SignedOutNoKeyStack' when they finish.
 const redesignRoute = ({loading, hasAccount, signedIn, holdOnboarding}) => {
-  if (loading) return <RootStack.Screen name="LoadingStack" component={LoadingStackScreens} />;
+  // The dark splash, not the old blue loading screen: it shows for a frame under the splash cover.
+  if (loading) return <RootStack.Screen name="LoadingStack" component={RedesignSplash} />;
   if (!hasAccount || holdOnboarding) {
     return <RootStack.Screen name="SignedOutNoKeyStack" component={RedesignOnboarding} />;
   }

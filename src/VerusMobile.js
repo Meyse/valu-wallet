@@ -47,7 +47,7 @@ import { SecureStorage } from "./utils/keychain/secureStore";
 import { recoverPasswordMigration } from "./utils/asyncStore/authDataStorage";
 import { VerusLogo, ValuLogo, ValuSeperator } from "./images/customIcons";
 import Styles from "./styles/index";
-import { loadRedesignFlag } from "./redesign/state/redesignState";
+import { getRedesignState, loadRedesignFlag } from "./redesign/state/redesignState";
 import RedesignSplash, { useSplashIsRedesigned } from "./redesign/onboarding/RedesignSplash";
 export class VerusMobile extends React.Component {
   constructor(props) {
@@ -220,7 +220,9 @@ export class VerusMobile extends React.Component {
           </NavigationContainer>
         </Portal.Host>
         <Modal
-          animationType={this.state.loading ? "fade" : "none"}
+          // Redesign: the dark splash shows at once. A fade let the screen under it show through
+          // for about a quarter second between the launch screen and the splash.
+          animationType={this.state.loading && !getRedesignState().enabled ? "fade" : "none"}
           transparent={false}
           visible={this.state.securityCover || this.state.loading}
         >

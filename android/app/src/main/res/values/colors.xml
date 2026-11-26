@@ -3,4 +3,6 @@
     <color name="blue">#00a3ce</color>
     <color name="dark_blue">#00a3ce</color>
     <color name="white">#FFFFFF</color>
+    <!-- The redesign splash background (#292929): no white flash before the dark app. -->
+    <color name="splash_background">#292929</color>
 </resources>
