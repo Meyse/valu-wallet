@@ -1,6 +1,6 @@
 // R04 Create password, R05 too weak, R06 no match. Gate: score 65 and a match.
-import React, {useEffect, useRef, useState} from 'react';
-import {Dimensions, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
+import React, {useRef, useState} from 'react';
+import {Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import ValuButton from '../../components/ValuButton';
 import {
   DenseScreen,
@@ -9,7 +9,7 @@ import {
   StepList,
   TopBar,
   useFocusOnArrival,
-  useRevealFocused,
+  useRevealOnFocus,
 } from '../../components/Layout';
 import Icon from '../../components/Icon';
 import StepIcon from '../../components/StepIcons';
@@ -51,6 +51,7 @@ function Meter({strength}) {
 function PasswordField({label, value, onChangeText, error, inputRef, onSubmit, onFocus, placeholder, returnKeyType, testID}) {
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
+  const reveal = useRevealOnFocus();
   const border = error ? colors.error : focused ? colors.accent : colors.text;
   return (
     <View style={styles.group}>
@@ -65,6 +66,7 @@ function PasswordField({label, value, onChangeText, error, inputRef, onSubmit, o
           placeholderTextColor={colors.textPlaceholder}
           onFocus={() => {
             setFocused(true);
+            reveal();
             onFocus?.();
           }}
           onBlur={() => setFocused(false)}
@@ -97,39 +99,13 @@ export default function CreatePassword({navigation}) {
   const [confirm, setConfirm] = useState(ob.password ?? '');
   const first = useRef(null);
   const second = useRef(null);
-  const confirmBox = useRef(null);
-  const scroll = useRef(null);
-  const reveal = useRef(null);
   const gate = getPasswordGate(password, confirm);
-  const revealFocused = useRevealFocused();
   const steps = stepListFor(ob.path, ROUTES.password, {
     biometry: ob.biometry?.biometry === true,
     bioName: biometryName(ob.biometry),
   });
 
   useFocusOnArrival(() => first.current?.focus());
-  useEffect(() => () => clearTimeout(reveal.current), []);
-
-  // Small phones: the confirm field and its error can sit under the button. Then show them in full
-  // above the button once the keyboard has made room. Where they fit, the title stays at the top
-  // (Paper "Create 03 state - Keyboard open").
-  const showConfirm = () => {
-    clearTimeout(reveal.current);
-    // Android: the layout scrolls the focused field above the button.
-    if (revealFocused) {
-      reveal.current = setTimeout(revealFocused, 100);
-      return;
-    }
-    reveal.current = setTimeout(
-      () =>
-        confirmBox.current?.measureInWindow((x, y, w, h) => {
-          const keyboardTop = Keyboard.metrics()?.screenY ?? Dimensions.get('window').height;
-          // The button (50) sits 12 above the keyboard.
-          if (y + h > keyboardTop - 50 - 12) scroll.current?.scrollToEnd({animated: true});
-        }),
-      300,
-    );
-  };
 
   const next = () => {
     if (!gate.canContinue) return;
@@ -139,7 +115,6 @@ export default function CreatePassword({navigation}) {
 
   return (
     <DenseScreen
-      scrollRef={scroll}
       topBar={<TopBar onBack={() => navigation.goBack()} />}
       footer={<ValuButton label="Continue" onPress={next} disabled={!gate.canContinue} testID="password-continue" />}>
       <StepList done={steps.done} next={steps.next}>
@@ -163,13 +138,12 @@ export default function CreatePassword({navigation}) {
               <Meter strength={gate.strength} />
               <ErrorText>{gate.error === 'weak' ? 'Make it longer, or add numbers and symbols.' : null}</ErrorText>
             </View>
-            <View ref={confirmBox}>
+            <View>
               <PasswordField
                 label="Confirm password"
                 value={confirm}
                 onChangeText={setConfirm}
                 inputRef={second}
-                onFocus={showConfirm}
                 placeholder="Repeat password"
                 returnKeyType="done"
                 onSubmit={next}

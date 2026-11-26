@@ -250,6 +250,24 @@ const KEYBOARD_GAP = 12;
 // Paper: the title sits 8 below the top of the scroll area when the keyboard is open.
 const TITLE_TOP = 8;
 const CONTENT_TOP = 32;
+// Room under the focused text input: the rest of its pill (about 14) and a one-line error (22).
+const REVEAL_MARGIN = 40;
+
+// Scrolls the focused field into view above the button (a screen calls it when a field gets focus
+// while the keyboard is open). Both DenseScreen versions give it.
+const RevealFocusedContext = createContext(null);
+
+// For a field inside a DenseScreen: call the returned function from onFocus. A short wait lets the
+// focus settle; a field that gets focus with the keyboard closed is shown by the keyboard move.
+export function useRevealOnFocus() {
+  const reveal = useContext(RevealFocusedContext);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return useCallback(() => {
+    clearTimeout(timer.current);
+    if (reveal) timer.current = setTimeout(reveal, 100);
+  }, [reveal]);
+}
 
 function DenseScreenIos({topBar, children, footer, scrollRef}) {
   const top = useTopBarTop();
@@ -270,27 +288,51 @@ function DenseScreenIos({topBar, children, footer, scrollRef}) {
   const keyboardHeight = useKeyboardHeight();
   const margin = lift(keyboardHeight);
   marginNow.current = margin;
-  // Keyboard opens: scroll the title to the top, as far as the content can scroll. After the
-  // scroll area has its smaller size: a scroll while the content still fits does nothing.
+  const offset = useRef(0); // current scroll position
+  const goal = useRef(0); // last position this screen scrolled to while the keyboard is open
+  // Scrolls so the focused field shows in full above the button, and never higher than `base`.
+  const fit = useCallback(base => {
+    const visible = size.current.full - marginNow.current;
+    const max = Math.max(0, size.current.content - visible);
+    const go = y => {
+      const to = Math.min(max, Math.max(0, y));
+      goal.current = to;
+      if (Math.abs(to - offset.current) > 1) ownScroll.current?.scrollTo({y: to, animated: true});
+    };
+    const input = TextInput.State.currentlyFocusedInput?.();
+    if (!input || !content.current) return go(base);
+    input.measureLayout(
+      content.current,
+      (x, y, w, h) => go(Math.max(base, CONTENT_TOP + y + h + REVEAL_MARGIN - visible)),
+      () => go(base),
+    );
+  }, []);
+  // A field gets focus while the keyboard is open: show it, without moving the title back down.
+  const reveal = useCallback(() => {
+    if (marginNow.current > 0) fit(Math.max(offset.current, goal.current));
+  }, [fit]);
+  // Keyboard opens: scroll the title to the top, as far as the content can scroll, and further
+  // only when the focused field would sit under the button. After the scroll area has its smaller
+  // size: a scroll while the content still fits does nothing.
   useEffect(() => {
-    if (!margin) return undefined;
+    if (!margin) {
+      goal.current = 0;
+      return undefined;
+    }
     let alive = true;
     requestAnimationFrame(() => {
-      if (!alive || !title.current || !content.current) return;
+      if (!alive || !content.current) return;
+      if (!title.current) return fit(offset.current);
       title.current.measureLayout(
         content.current,
-        (x, y) => {
-          // The full height minus the keyboard lift: onLayout may not have run yet.
-          const max = Math.max(0, size.current.content - (size.current.full - margin));
-          ownScroll.current?.scrollTo({y: Math.min(max, Math.max(0, y + CONTENT_TOP - TITLE_TOP)), animated: true});
-        },
-        () => {},
+        (x, y) => fit(y + CONTENT_TOP - TITLE_TOP),
+        () => fit(offset.current),
       );
     });
     return () => {
       alive = false;
     };
-  }, [margin]);
+  }, [margin, fit]);
   const ride = useAnimatedStyle(() => {
     const h = keyboard.height.value;
     return {transform: [{translateY: -(h > 0 ? Math.max(0, h + KEYBOARD_GAP - bottomGap) : 0)}]};
@@ -304,11 +346,17 @@ function DenseScreenIos({topBar, children, footer, scrollRef}) {
           contentContainerStyle={{paddingTop: CONTENT_TOP, paddingBottom: 24, alignItems: 'center'}}
           onLayout={e => (size.current.full = e.nativeEvent.layout.height + marginNow.current)}
           onContentSizeChange={(w, h) => (size.current.content = h)}
+          scrollEventThrottle={16}
+          onScroll={e => {
+            offset.current = e.nativeEvent.contentOffset.y;
+          }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}>
           <View ref={content} style={{width: column}}>
-            <TitleAnchorContext.Provider value={title}>{children}</TitleAnchorContext.Provider>
+            <TitleAnchorContext.Provider value={title}>
+              <RevealFocusedContext.Provider value={reveal}>{children}</RevealFocusedContext.Provider>
+            </TitleAnchorContext.Provider>
           </View>
         </ScrollView>
         {footer ? (
@@ -338,13 +386,6 @@ function useAndroidKeyboardOpen() {
   }, []);
   return open;
 }
-
-// Android: scrolls the focused field into view above the button. DenseScreenAndroid gives it; on iOS
-// it is null (DenseScreenIos moves the title to the top instead).
-const RevealFocusedContext = createContext(null);
-export const useRevealFocused = () => useContext(RevealFocusedContext);
-// Room under the focused field, so a one-line error under it shows too.
-const REVEAL_MARGIN = 28;
 
 function DenseScreenAndroid({topBar, children, footer, scrollRef}) {
   const top = useTopBarTop();

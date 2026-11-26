@@ -99,17 +99,20 @@ export function SheetFrame({visible, onClose, grabber = false, cardStyle, childr
   const width = Math.min(CARD_WIDTH, screenW - 32);
   const bottom = Math.max(24, insets.bottom + 8);
 
-  // iOS: a sheet with a text field rises with the keyboard and stays 12 above it. Android pans the
-  // window itself (adjustPan).
+  // A sheet with a text field rises with the keyboard and stays 12 above it. Android too: the modal
+  // window is edge to edge and does not resize or pan for the keyboard (seen on Android 16).
   const lift = useSharedValue(0);
   useEffect(() => {
-    if (Platform.OS !== 'ios') return undefined;
+    const ios = Platform.OS === 'ios';
     const move = to => e => {
-      lift.value = withTiming(to(e), {duration: e?.duration || 250});
+      lift.value = withTiming(to(e), {duration: e?.duration || (ios ? 250 : 180)});
     };
     const subs = [
-      Keyboard.addListener('keyboardWillShow', move(e => Math.max(0, e.endCoordinates.height + 12 - bottom))),
-      Keyboard.addListener('keyboardWillHide', move(() => 0)),
+      Keyboard.addListener(
+        ios ? 'keyboardWillShow' : 'keyboardDidShow',
+        move(e => Math.max(0, e.endCoordinates.height + 12 - bottom)),
+      ),
+      Keyboard.addListener(ios ? 'keyboardWillHide' : 'keyboardDidHide', move(() => 0)),
     ];
     return () => subs.forEach(sub => sub.remove());
   }, [bottom, lift]);

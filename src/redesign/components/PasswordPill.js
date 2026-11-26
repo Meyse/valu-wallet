@@ -3,6 +3,7 @@
 import React, {forwardRef, useState} from 'react';
 import {Platform, Pressable, StyleSheet, TextInput, View} from 'react-native';
 import Icon from './Icon';
+import {useRevealOnFocus} from './Layout';
 import {colors, type} from '../theme/tokens';
 
 const PASSWORD_PROPS = Platform.select({
@@ -16,6 +17,7 @@ const PasswordPill = forwardRef(function PasswordPill(
 ) {
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
+  const reveal = useRevealOnFocus();
   const border = error ? colors.error : focused ? colors.accent : 'transparent';
   return (
     <View style={[styles.field, {borderColor: border}]}>
@@ -27,7 +29,10 @@ const PasswordPill = forwardRef(function PasswordPill(
         secureTextEntry={!visible}
         placeholder={placeholder}
         placeholderTextColor={colors.textPlaceholder}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true);
+          reveal();
+        }}
         onBlur={() => setFocused(false)}
         onSubmitEditing={onSubmitEditing}
         submitBehavior={returnKeyType === 'next' ? 'submit' : 'blurAndSubmit'}
