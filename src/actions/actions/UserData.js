@@ -549,6 +549,8 @@ const migrateAfterUnlock = async (user, password) => {
   }
   try {
     const result = await migrateUserVault(user.accountHash, password);
+    // Debug builds: device checks read this line from the log.
+    if (__DEV__) console.log(`VAULT_MIGRATION ${result.status}`);
     if (result.status === 'already') {
       // Another unlock migrated this user after our read. Read it again so the
       // session uses the stored v2 records and the vault key.
@@ -585,6 +587,7 @@ export const validateLogin = async (
     if (dek != null) {
       await convertLegacyAttestationRecords(user.accountHash, password, dek);
     }
+    if (__DEV__) console.log(`VAULT_UNLOCK ${dek != null ? 'v2' : 'legacy'}`);
 
     return await authenticateAccount(
       {...account, ...user},
