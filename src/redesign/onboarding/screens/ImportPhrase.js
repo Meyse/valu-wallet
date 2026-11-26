@@ -5,10 +5,12 @@ import {StyleSheet, View} from 'react-native';
 // Same clipboard API as the rest of the app (SendWizardRecipient, AddressBook).
 import {Clipboard} from 'react-native';
 import ValuButton, {TextLink} from '../../components/ValuButton';
-import {DenseScreen, ErrorText, Heading, TopBar, useFocusOnArrival} from '../../components/Layout';
+import {DenseScreen, ErrorText, Heading, StepList, TopBar, useFocusOnArrival} from '../../components/Layout';
+import StepIcon from '../../components/StepIcons';
 import {Grid, Segmented, WordSlot} from '../../components/PhraseGrid';
 import {checkPhrase, normalizeWord, parsePastedPhrase, placeWords} from '../../logic/importValidation';
-import {ROUTES, nextRoute, progressFor} from '../../logic/steps';
+import {biometryName} from '../../logic/biometry';
+import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
 import {useOnboarding} from '../OnboardingContext';
 
 const SWITCH = [
@@ -16,8 +18,19 @@ const SWITCH = [
   {value: 24, label: '24 words'},
 ];
 
+// Paper round 8 has two takes of this screen. true: the full step list with the import icon, and the
+// screen scrolls ("Alternative - Import phrase 03 - step list, scrolls"). false: the title only, no
+// icon and no list ("Import phrase 03 - Enter phrase"), because the 12-word grid leaves little room.
+const SHOW_STEP_LIST = true;
+
 export default function ImportPhrase({navigation}) {
   const ob = useOnboarding();
+  const steps = SHOW_STEP_LIST
+    ? stepListFor('import', ROUTES.importPhrase, {
+        biometry: ob.biometry?.biometry === true,
+        bioName: biometryName(ob.biometry),
+      })
+    : {done: [], next: []};
   const [count, setCount] = useState(12);
   const [words, setWords] = useState(() => Array(12).fill(''));
   const [focus, setFocus] = useState(0);
@@ -102,12 +115,7 @@ export default function ImportPhrase({navigation}) {
 
   return (
     <DenseScreen
-        topBar={
-          <TopBar
-            onBack={() => navigation.goBack()}
-            progress={progressFor('import', ROUTES.importPhrase)}
-          />
-        }
+        topBar={<TopBar onBack={() => navigation.goBack()} />}
         footer={
           <ValuButton
             label="Continue"
@@ -116,38 +124,44 @@ export default function ImportPhrase({navigation}) {
             testID="import-continue"
           />
         }>
-        <View style={styles.content}>
-          <Heading title="Enter your phrase" body="Type each word in order, or paste the phrase." />
-          <Segmented options={SWITCH} value={count} onChange={setLength} />
-          <View>
-            <Grid>
-              {words.map((w, i) => (
-                <WordSlot
-                  key={`${count}-${i}`}
-                  ref={el => (refs.current[i] = el)}
-                  index={i}
-                  value={w}
-                  focused={focus === i}
-                  error={shownUnknown.includes(i)}
-                  onChangeText={text => onChange(i, text)}
-                  onFocus={() => setFocus(i)}
-                  onBlur={() => setFocus(f => (f === i ? -1 : f))}
-                  onSubmit={() => (i < count - 1 ? refs.current[i + 1]?.focus() : next())}
-                  last={i === count - 1}
-                />
-              ))}
-            </Grid>
-            <ErrorText>{error}</ErrorText>
-          </View>
-          <View style={styles.links}>
-            <TextLink label="Paste" onPress={paste} testID="import-paste" />
-            <TextLink
-              label="Use a private key"
-              onPress={() => navigation.navigate(ROUTES.importKey)}
-              testID="import-use-key"
+        <StepList done={steps.done} next={steps.next}>
+          <View style={styles.content}>
+            <Heading
+              icon={SHOW_STEP_LIST ? <StepIcon name="import" /> : undefined}
+              title="Enter your phrase"
+              body="Type each word in order, or paste the phrase."
             />
+            <Segmented options={SWITCH} value={count} onChange={setLength} />
+            <View>
+              <Grid>
+                {words.map((w, i) => (
+                  <WordSlot
+                    key={`${count}-${i}`}
+                    ref={el => (refs.current[i] = el)}
+                    index={i}
+                    value={w}
+                    focused={focus === i}
+                    error={shownUnknown.includes(i)}
+                    onChangeText={text => onChange(i, text)}
+                    onFocus={() => setFocus(i)}
+                    onBlur={() => setFocus(f => (f === i ? -1 : f))}
+                    onSubmit={() => (i < count - 1 ? refs.current[i + 1]?.focus() : next())}
+                    last={i === count - 1}
+                  />
+                ))}
+              </Grid>
+              <ErrorText>{error}</ErrorText>
+            </View>
+            <View style={styles.links}>
+              <TextLink label="Paste" onPress={paste} testID="import-paste" />
+              <TextLink
+                label="Use a private key"
+                onPress={() => navigation.navigate(ROUTES.importKey)}
+                testID="import-use-key"
+              />
+            </View>
           </View>
-        </View>
+        </StepList>
     </DenseScreen>
   );
 }

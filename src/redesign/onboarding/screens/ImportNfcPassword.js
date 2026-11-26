@@ -4,9 +4,11 @@
 import React, {useRef, useState} from 'react';
 import {Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import ValuButton, {TextLink} from '../../components/ValuButton';
-import {DenseScreen, ErrorText, Heading, TopBar, useFocusOnArrival} from '../../components/Layout';
+import {DenseScreen, ErrorText, Heading, StepList, TopBar, useFocusOnArrival} from '../../components/Layout';
 import Icon from '../../components/Icon';
-import {ROUTES, nextRoute, progressFor} from '../../logic/steps';
+import StepIcon from '../../components/StepIcons';
+import {biometryName} from '../../logic/biometry';
+import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
 import {colors, type} from '../../theme/tokens';
 import {useOnboarding} from '../OnboardingContext';
 import {chipSeedHasZ, openChipBackup} from '../import/nfcImport';
@@ -24,6 +26,10 @@ export default function ImportNfcPassword({navigation}) {
   const [wrong, setWrong] = useState(false);
   const [opening, setOpening] = useState(false);
   const input = useRef(null);
+  const steps = stepListFor('import', ROUTES.importNfcPassword, {
+    biometry: ob.biometry?.biometry === true,
+    bioName: biometryName(ob.biometry),
+  });
   useFocusOnArrival(() => input.current?.focus());
 
   const open = async () => {
@@ -52,9 +58,7 @@ export default function ImportNfcPassword({navigation}) {
 
   return (
     <DenseScreen
-      topBar={
-        <TopBar onBack={() => navigation.goBack()} progress={progressFor('import', ROUTES.importNfcPassword)} />
-      }
+      topBar={<TopBar onBack={() => navigation.goBack()} />}
       footer={
         <ValuButton
           label="Continue"
@@ -64,47 +68,53 @@ export default function ImportNfcPassword({navigation}) {
           testID="nfc-password-continue"
         />
       }>
-      <View style={styles.content}>
-        <Heading title="Unlock your chip backup" body="Enter the password you used when you wrote the chip." />
-        <View style={styles.group}>
-          <View style={[styles.field, {borderColor: wrong ? colors.error : focused ? colors.accent : colors.border}]}>
-            <TextInput
-              ref={input}
-              value={password}
-              onChangeText={t => {
-                setPassword(t);
-                setWrong(false);
-              }}
-              editable={!opening}
-              secureTextEntry={!visible}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              onSubmitEditing={open}
-              submitBehavior="blurAndSubmit"
-              returnKeyType="done"
-              autoCapitalize="none"
-              selectionColor={colors.accent}
-              cursorColor={colors.accent}
-              accessibilityLabel="Chip password"
-              style={[type.bodyLarge, styles.input, !visible && password.length > 0 && styles.bullets]}
-              testID="nfc-password-input"
-              {...PASSWORD_PROPS}
-            />
-            <Pressable
-              onPress={() => setVisible(v => !v)}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel={visible ? 'Hide password' : 'Show password'}>
-              <Icon name="eye" />
-            </Pressable>
+      <StepList done={steps.done} next={steps.next}>
+        <View style={styles.content}>
+          <Heading
+            icon={<StepIcon name="import" />}
+            title="Unlock your chip backup"
+            body="Enter the password you used when you wrote the chip."
+          />
+          <View style={styles.group}>
+            <View style={[styles.field, {borderColor: wrong ? colors.error : focused ? colors.accent : colors.border}]}>
+              <TextInput
+                ref={input}
+                value={password}
+                onChangeText={t => {
+                  setPassword(t);
+                  setWrong(false);
+                }}
+                editable={!opening}
+                secureTextEntry={!visible}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                onSubmitEditing={open}
+                submitBehavior="blurAndSubmit"
+                returnKeyType="done"
+                autoCapitalize="none"
+                selectionColor={colors.accent}
+                cursorColor={colors.accent}
+                accessibilityLabel="Chip password"
+                style={[type.bodyLarge, styles.input, !visible && password.length > 0 && styles.bullets]}
+                testID="nfc-password-input"
+                {...PASSWORD_PROPS}
+              />
+              <Pressable
+                onPress={() => setVisible(v => !v)}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel={visible ? 'Hide password' : 'Show password'}>
+                <Icon name="eye" />
+              </Pressable>
+            </View>
+            <ErrorText>{wrong ? 'This password does not unlock the chip. Check it and try again.' : null}</ErrorText>
+            {opening ? <Text style={[type.body, styles.note]}>Unlocking the chip. This can take a minute.</Text> : null}
           </View>
-          <ErrorText>{wrong ? 'This password does not unlock the chip. Check it and try again.' : null}</ErrorText>
-          {opening ? <Text style={[type.body, styles.note]}>Unlocking the chip. This can take a minute.</Text> : null}
+          <View style={styles.links}>
+            <TextLink label="Scan a different chip" onPress={otherChip} testID="nfc-other-chip" />
+          </View>
         </View>
-        <View style={styles.links}>
-          <TextLink label="Scan a different chip" onPress={otherChip} testID="nfc-other-chip" />
-        </View>
-      </View>
+      </StepList>
     </DenseScreen>
   );
 }

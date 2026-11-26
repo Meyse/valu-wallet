@@ -1,11 +1,13 @@
 // R04 Create password, R05 too weak, R06 no match. Gate: score 65 and a match.
 import React, {useEffect, useRef, useState} from 'react';
-import {Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
+import {Dimensions, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import ValuButton from '../../components/ValuButton';
-import {DenseScreen, ErrorText, Heading, TopBar, useFocusOnArrival} from '../../components/Layout';
+import {DenseScreen, ErrorText, Heading, StepList, TopBar, useFocusOnArrival} from '../../components/Layout';
 import Icon from '../../components/Icon';
+import StepIcon from '../../components/StepIcons';
 import {getPasswordGate} from '../../logic/password';
-import {ROUTES, nextRoute, progressFor} from '../../logic/steps';
+import {biometryName} from '../../logic/biometry';
+import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
 import {colors, type} from '../../theme/tokens';
 import {useOnboarding} from '../OnboardingContext';
 
@@ -87,18 +89,32 @@ export default function CreatePassword({navigation}) {
   const [confirm, setConfirm] = useState(ob.password ?? '');
   const first = useRef(null);
   const second = useRef(null);
+  const confirmBox = useRef(null);
   const scroll = useRef(null);
   const reveal = useRef(null);
   const gate = getPasswordGate(password, confirm);
+  const steps = stepListFor(ob.path, ROUTES.password, {
+    biometry: ob.biometry?.biometry === true,
+    bioName: biometryName(ob.biometry),
+  });
 
   useFocusOnArrival(() => first.current?.focus());
   useEffect(() => () => clearTimeout(reveal.current), []);
 
-  // Small phones: the confirm field and its error sit at the end of the form. Show them in full
-  // above the button once the keyboard has made room.
+  // Small phones: the confirm field and its error can sit under the button. Then show them in full
+  // above the button once the keyboard has made room. Where they fit, the title stays at the top
+  // (Paper "Create 03 state - Keyboard open").
   const showConfirm = () => {
     clearTimeout(reveal.current);
-    reveal.current = setTimeout(() => scroll.current?.scrollToEnd({animated: true}), 300);
+    reveal.current = setTimeout(
+      () =>
+        confirmBox.current?.measureInWindow((x, y, w, h) => {
+          const keyboardTop = Keyboard.metrics()?.screenY ?? Dimensions.get('window').height;
+          // The button (50) sits 12 above the keyboard.
+          if (y + h > keyboardTop - 50 - 12) scroll.current?.scrollToEnd({animated: true});
+        }),
+      300,
+    );
   };
 
   const next = () => {
@@ -110,44 +126,50 @@ export default function CreatePassword({navigation}) {
   return (
     <DenseScreen
       scrollRef={scroll}
-      topBar={<TopBar onBack={() => navigation.goBack()} progress={progressFor(ob.path, ROUTES.password)} />}
+      topBar={<TopBar onBack={() => navigation.goBack()} />}
       footer={<ValuButton label="Continue" onPress={next} disabled={!gate.canContinue} testID="password-continue" />}>
-      <View style={styles.content}>
-        <Heading title="Create a password" body="It unlocks Valu Wallet on this phone." />
-        <View style={styles.fields}>
-          <View>
-            <PasswordField
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              inputRef={first}
-              returnKeyType="next"
-              onSubmit={() => second.current?.focus()}
-              testID="password-new"
-            />
-            <Meter strength={gate.strength} />
-            <ErrorText>{gate.error === 'weak' ? 'Make it longer, or add numbers and symbols.' : null}</ErrorText>
+      <StepList done={steps.done} next={steps.next}>
+        <View style={styles.content}>
+          <Heading
+            icon={<StepIcon name="password" />}
+            title="Create a password"
+            body="It unlocks Valu Wallet on this phone."
+          />
+          <View style={styles.fields}>
+            <View>
+              <PasswordField
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                inputRef={first}
+                returnKeyType="next"
+                onSubmit={() => second.current?.focus()}
+                testID="password-new"
+              />
+              <Meter strength={gate.strength} />
+              <ErrorText>{gate.error === 'weak' ? 'Make it longer, or add numbers and symbols.' : null}</ErrorText>
+            </View>
+            <View ref={confirmBox}>
+              <PasswordField
+                label="Confirm password"
+                value={confirm}
+                onChangeText={setConfirm}
+                inputRef={second}
+                onFocus={showConfirm}
+                placeholder="Repeat password"
+                returnKeyType="done"
+                onSubmit={next}
+                error={gate.error === 'mismatch'}
+                testID="password-confirm"
+              />
+              <ErrorText>{gate.error === 'mismatch' ? 'Passwords do not match.' : null}</ErrorText>
+            </View>
           </View>
-          <View>
-            <PasswordField
-              label="Confirm password"
-              value={confirm}
-              onChangeText={setConfirm}
-              inputRef={second}
-              onFocus={showConfirm}
-              placeholder="Repeat password"
-              returnKeyType="done"
-              onSubmit={next}
-              error={gate.error === 'mismatch'}
-              testID="password-confirm"
-            />
-            <ErrorText>{gate.error === 'mismatch' ? 'Passwords do not match.' : null}</ErrorText>
-          </View>
+          <Text style={[type.body, styles.footnote]}>
+            If you forget it, you need a backup of your wallet to get back in.
+          </Text>
         </View>
-        <Text style={[type.body, styles.footnote]}>
-          If you forget it, you need a backup of your wallet to get back in.
-        </Text>
-      </View>
+      </StepList>
     </DenseScreen>
   );
 }

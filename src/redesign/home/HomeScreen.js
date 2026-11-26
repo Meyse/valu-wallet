@@ -1,9 +1,12 @@
 // New Home (R16, with the team's Crypto "Total Balance" block from Paper p-1-0).
 // First run: the welcome card (R16). After "Dismiss": the balance of this wallet, from the same
 // redux data and refresh calls as the old Home. Activity shows how this wallet was made.
+// Backup (Paper p-5-0): the first funds open a sheet one time; after "Later" a card stays on top
+// of Home until the backup is done. Neither blocks the wallet.
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Platform, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
+import {SvgXml} from 'react-native-svg';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useDispatch, useSelector, useStore} from 'react-redux';
 import {formatCurrency} from 'react-native-format-currency';
@@ -19,10 +22,15 @@ import ValuButton from '../components/ValuButton';
 import Sheet, {BackdropSourceContext} from '../components/Sheet';
 import {formatCrypto, formatFiat, rateFor, summarizeBalances} from '../logic/balances';
 import {dismissWelcome, readWelcome, timeAgo} from '../state/welcomeState';
+import {backupPrompt, markFundsSheetShown, readBackup} from '../state/backupState';
 import {colors, type} from '../theme/tokens';
 import {TAB_BAR_CLEARANCE} from './tabBarMetrics';
+import {DEMO_ACTIVITY, DEMO_CREDENTIAL, DEMO_HOME, DemoIcon, DemoTile} from './demoHome';
 
 const IS_ANDROID = Platform.OS === 'android';
+// false: Home shows no balance and no currency list (Max, 2026-11-26: not in the demo video). The
+// code stays; set true to show them again.
+const SHOW_BALANCES = false;
 
 function HeaderButton({icon, label, onPress, testID}) {
   return (
@@ -66,6 +74,37 @@ const ACTIVITY_COPY = {
   created: {title: 'Wallet created', body: 'On this phone'},
   imported: {title: 'Wallet imported', body: 'On this phone'},
 };
+// Paper round 9 (Backup 09): one row for both ways (words or chip). Real state, not demo content.
+const BACKUP_ROW = {title: 'Wallet backup', body: 'You backed up your wallet'};
+const BACKUP_TILE =
+  '<svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+  '<path d="M12 3L19 6V11.5C19 15.6 16.1 19.2 12 20.5C7.9 19.2 5 15.6 5 11.5V6L12 3Z" fill="none" stroke="#42DF5E" stroke-width="1.6" stroke-linejoin="round"/>' +
+  '<path d="M9 12L11.2 14.2L15.2 10" fill="none" stroke="#42DF5E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+  '</svg>';
+function BackupAvatar() {
+  return (
+    <View style={[styles.avatar, {backgroundColor: '#23402C'}]}>
+      <SvgXml xml={BACKUP_TILE} width={22} height={22} />
+    </View>
+  );
+}
+
+function HomeCard({icon, title, body, button, onPress, testID}) {
+  return (
+    <View style={styles.card} testID={testID}>
+      <View style={{gap: 16}}>
+        <Icon name={icon} />
+        <View style={{gap: 16}}>
+          <Text style={[type.titleCard, styles.text]} accessibilityRole="header">
+            {title}
+          </Text>
+          <Text style={[type.body, styles.text]}>{body}</Text>
+        </View>
+      </View>
+      <ValuButton label={button} onPress={onPress} testID={`${testID}-button`} />
+    </View>
+  );
+}
 
 export default function HomeScreen({navigation}) {
   const insets = useSafeAreaInsets();
@@ -73,6 +112,9 @@ export default function HomeScreen({navigation}) {
   const store = useStore();
   const [welcome, setWelcome] = useState(undefined); // undefined while loading
   const [scanInfo, setScanInfo] = useState(false);
+  const [backup, setBackup] = useState(null);
+  const [fundsSheet, setFundsSheet] = useState(false);
+  const [demoInfo, setDemoInfo] = useState(false);
   const root = useRef(null);
 
   const accountHash = useSelector(state => state.authentication.activeAccount?.accountHash);
@@ -93,6 +135,17 @@ export default function HomeScreen({navigation}) {
     };
   }, [accountHash]);
 
+  // The backup record changes in the backup flow: read it each time Home shows.
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      if (accountHash) readBackup(accountHash).then(r => alive && setBackup(r));
+      return () => {
+        alive = false;
+      };
+    }, [accountHash]),
+  );
+
   // Same refresh as the old Home on focus: fiat price, balances and chain info for each coin.
   useFocusEffect(
     useCallback(() => {
@@ -111,8 +164,36 @@ export default function HomeScreen({navigation}) {
   const fiat = formatFiat(total);
   const isZero = total != null && total.isZero();
 
-  const showWelcome = welcome && !welcome.dismissed;
-  const activity = welcome ? ACTIVITY_COPY[welcome.kind] : null;
+  const hasFunds = assets.some(a => a.known && !a.crypto.isZero());
+  const prompt = backupPrompt(backup, hasFunds);
+
+  // First funds: the sheet, one time. It is marked as shown when it opens, so a restart while it
+  // is open shows the card, not the sheet again.
+  useEffect(() => {
+    if (prompt !== 'sheet') return;
+    setFundsSheet(true);
+    setBackup(r => ({...r, fundsSheetShown: true}));
+    markFundsSheetShown(accountHash);
+  }, [prompt, accountHash]);
+
+  const openBackup = () => {
+    setFundsSheet(false);
+    navigation.navigate('RedesignBackup');
+  };
+
+  const backupCard = prompt === 'card' && !fundsSheet;
+  // Paper p-5-0: the backup card takes the place of the welcome card, and Home after the backup
+  // (09) has no card. The demo Home (team reference) has no welcome card.
+  const showWelcome = !DEMO_HOME && welcome && !welcome.dismissed && !backupCard && !backup?.backedUpAt;
+  const showBalances = SHOW_BALANCES && !showWelcome && welcome !== undefined;
+  const real = [];
+  if (backup?.backedUpAt) real.push({...BACKUP_ROW, at: backup.backedUpAt, key: 'backup', avatar: 'backup'});
+  if (!DEMO_HOME && welcome && ACTIVITY_COPY[welcome.kind]) real.push({...ACTIVITY_COPY[welcome.kind], at: welcome.at, key: 'wallet'});
+  real.sort((x, y) => y.at - x.at);
+  const rows = [
+    ...real.map(r => ({avatar: 'valu', ...r, time: timeAgo(r.at)})),
+    ...(DEMO_HOME ? DEMO_ACTIVITY : []),
+  ];
 
   const onDismiss = () => {
     setWelcome(w => ({...w, dismissed: true}));
@@ -137,6 +218,16 @@ export default function HomeScreen({navigation}) {
           />
         </View>
 
+        {backupCard ? (
+          <HomeCard
+            icon="shieldAlertYellow"
+            title="Back up your wallet"
+            body="You have funds in this wallet. If you lose this phone, you need a backup to get them back."
+            button="Back up now"
+            onPress={openBackup}
+            testID="home-backup-card"
+          />
+        ) : null}
         {showWelcome ? (
           <View style={styles.card} testID="home-welcome">
             <View style={{gap: 16}}>
@@ -150,7 +241,8 @@ export default function HomeScreen({navigation}) {
             </View>
             <ValuButton label="Dismiss" onPress={onDismiss} testID="home-welcome-dismiss" />
           </View>
-        ) : welcome !== undefined ? (
+        ) : null}
+        {showBalances ? (
           <View style={styles.balance} testID="home-balance">
             <Text style={[type.labelSmall, styles.text]}>Total Balance</Text>
             <Text style={[type.display, styles.text]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
@@ -183,23 +275,57 @@ export default function HomeScreen({navigation}) {
           </View>
         ) : null}
 
-        <View style={[styles.activity, {marginTop: showWelcome ? 70 : 40}]}>
-          <View style={styles.activityHeader}>
+        {DEMO_HOME ? (
+          <View style={[styles.section, {marginTop: backupCard ? 32 : 25}]} testID="home-demo-credentials">
+            <View style={styles.sectionHeader}>
+              <DemoIcon name="wallet" />
+              <Text style={[type.label, styles.text]} accessibilityRole="header">
+                New credentials
+              </Text>
+            </View>
+            <View style={styles.credential}>
+              <View style={styles.credentialRow}>
+                <DemoTile name="issuer" />
+                <View style={styles.credentialText}>
+                  <Text style={[type.label, styles.text]}>{DEMO_CREDENTIAL.issuer}</Text>
+                  <Text style={[type.caption, {color: colors.textSecondary}]}>{DEMO_CREDENTIAL.claim}</Text>
+                </View>
+                <DemoIcon name="lock" size={20} />
+              </View>
+              <ValuButton
+                label={DEMO_CREDENTIAL.button}
+                onPress={() => setDemoInfo(true)}
+                style={styles.smallButton}
+                testID="home-demo-credential"
+              />
+            </View>
+          </View>
+        ) : null}
+
+        <View style={[styles.section, {marginTop: DEMO_HOME ? 32 : showWelcome || backupCard ? 70 : 40}]}>
+          <View style={styles.sectionHeader}>
             <Icon name="activityClock" />
             <Text style={[type.label, styles.text]} accessibilityRole="header">
               Activity
             </Text>
           </View>
-          {activity ? (
-            <View style={styles.activityRow} testID="home-activity-row">
-              <ActivityAvatar />
-              <View style={styles.activityText}>
-                <Text style={[type.label, styles.text]}>{activity.title}</Text>
-                <View style={styles.activityMeta}>
-                  <Text style={[type.caption, {color: colors.textSecondary}]}>{activity.body}</Text>
-                  <Text style={[type.caption, {color: colors.textSecondary}]}>{timeAgo(welcome.at)}</Text>
+          {rows.length ? (
+            <View style={styles.activityGroup}>
+              {rows.map((row, i) => (
+                <View key={row.key} testID={`home-activity-${row.key}`}>
+                  {i > 0 ? <View style={styles.activityDivider} /> : null}
+                  <View style={styles.activityRow}>
+                  {row.avatar === 'valu' ? <ActivityAvatar /> : row.avatar === 'backup' ? <BackupAvatar /> : <DemoTile name={row.avatar} />}
+                  <View style={styles.activityText}>
+                    <Text style={[type.label, styles.text]}>{row.title}</Text>
+                    <View style={styles.activityMeta}>
+                      <Text style={[type.caption, {color: colors.textSecondary}]}>{row.body}</Text>
+                      <Text style={[type.caption, {color: colors.textSecondary}]}>{row.time}</Text>
+                    </View>
+                  </View>
+                  </View>
                 </View>
-              </View>
+              ))}
             </View>
           ) : (
             <Text style={[type.body, {color: colors.textSecondary, paddingHorizontal: 4}]}>No activity yet.</Text>
@@ -207,6 +333,26 @@ export default function HomeScreen({navigation}) {
         </View>
       </ScrollView>
 
+      <Sheet
+        visible={fundsSheet}
+        onClose={() => setFundsSheet(false)}
+        icon={<Icon name="shieldAlert" />}
+        title="You received funds"
+        body="Back up your wallet now. If you lose this phone, you need a backup to get your funds back."
+        testID="home-funds-sheet"
+        buttons={[
+          {label: 'Back up now', variant: 'accent', onPress: openBackup, testID: 'home-funds-backup'},
+          {label: 'Later', onPress: () => setFundsSheet(false), testID: 'home-funds-later'},
+        ]}
+      />
+      <Sheet
+        visible={demoInfo}
+        onClose={() => setDemoInfo(false)}
+        title="Sample credential"
+        body="This card is sample content for the demo. There is no credential to show."
+        testID="home-demo-sheet"
+        buttons={[{label: 'Close', onPress: () => setDemoInfo(false), testID: 'home-demo-close'}]}
+      />
       <Sheet
         visible={scanInfo}
         onClose={() => setScanInfo(false)}
@@ -239,24 +385,26 @@ const styles = StyleSheet.create({
     gap: 48,
     borderRadius: 24,
     backgroundColor: colors.surfaceCard,
-    ...(IS_ANDROID ? {borderWidth: 1, borderColor: colors.border} : null),
+    // Team Home (Paper p-1-0, "Onboarding 11 - Home"): the card has a 1 px border.
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   balance: {marginTop: 44, paddingHorizontal: 16, gap: 8},
   assets: {marginTop: 20, gap: 16},
   assetRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
   assetText: {flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12},
   coinTile: {width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
-  activity: {paddingHorizontal: 16, gap: 12},
-  activityHeader: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4},
-  activityRow: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingTop: 16,
-    paddingLeft: 16,
-    paddingRight: 24,
-    borderRadius: 24,
-    backgroundColor: colors.fillSubtle,
-  },
+  section: {paddingHorizontal: 16, gap: 8},
+  sectionHeader: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4},
+  // Paper round 9: an outlined card with no fill.
+  credential: {padding: 16, gap: 20, borderRadius: 24, borderWidth: 1, borderColor: colors.border},
+  credentialRow: {flexDirection: 'row', alignItems: 'flex-start', gap: 12},
+  smallButton: {height: 40, borderRadius: 20},
+  credentialText: {flex: 1, gap: 4},
+  // Team reference: the rows share one card, with a line between them under the text.
+  activityGroup: {borderRadius: 24, backgroundColor: colors.fillSubtle, paddingLeft: 16, paddingRight: 24},
+  activityRow: {flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16},
+  activityDivider: {height: 1, marginLeft: 52, backgroundColor: colors.border},
   avatar: {
     width: 40,
     height: 40,
@@ -264,8 +412,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
   },
-  activityText: {flex: 1, paddingBottom: 16, gap: 4},
+  activityText: {flex: 1},
   activityMeta: {flexDirection: 'row', justifyContent: 'space-between', gap: 8},
 });

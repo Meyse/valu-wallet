@@ -7,7 +7,7 @@ import {
   classifyScannedText,
   parsePastedPhrase,
 } from '../importValidation';
-import {nextRoute, progressFor, ROUTES} from '../steps';
+import {nextRoute, ROUTES, stepListFor} from '../steps';
 
 // Public BIP39 test vectors (trezor/python-mnemonic vectors.json). Not wallets of anyone.
 const VECTOR_12 =
@@ -155,11 +155,45 @@ describe('step order', () => {
     expect(nextRoute('import', ROUTES.password, {biometry: false})).toBe('Creating');
   });
 
-  it('shows the password step as 2 of 3 on import and 1 of 2 on create (Paper bar 50 %)', () => {
-    expect(progressFor('import', ROUTES.password)).toEqual([2, 3]);
-    // Paper Import NFC 03b: the chip password is the first of three import steps.
-    expect(progressFor('import', ROUTES.importNfcPassword)).toEqual([1, 3]);
-    expect(progressFor('create', ROUTES.password)).toEqual([1, 2]);
+});
+
+describe('step list (round 8)', () => {
+  it('create: Create password, then Use Face ID', () => {
+    expect(stepListFor('create', ROUTES.password)).toEqual({
+      done: [],
+      current: 'Create password',
+      next: ['Use Face ID'],
+    });
+    expect(stepListFor('create', ROUTES.faceId)).toEqual({
+      done: ['Create password'],
+      current: 'Use Face ID',
+      next: [],
+    });
+  });
+
+  it('import: Import wallet, Create password, Use Face ID; every lane is the Import wallet step', () => {
+    [ROUTES.importPhrase, ROUTES.importKey, ROUTES.importNfcPassword].forEach(lane => {
+      expect(stepListFor('import', lane)).toEqual({
+        done: [],
+        current: 'Import wallet',
+        next: ['Create password', 'Use Face ID'],
+      });
+    });
+    expect(stepListFor('import', ROUTES.password)).toEqual({
+      done: ['Import wallet'],
+      current: 'Create password',
+      next: ['Use Face ID'],
+    });
+    expect(stepListFor('import', ROUTES.faceId).done).toEqual(['Import wallet', 'Create password']);
+  });
+
+  it('leaves out the Face ID step when the phone has no biometry', () => {
+    expect(stepListFor('create', ROUTES.password, {biometry: false}).next).toEqual([]);
+    expect(stepListFor('import', ROUTES.importKey, {biometry: false}).next).toEqual(['Create password']);
+  });
+
+  it('names the step after the phone biometry', () => {
+    expect(stepListFor('create', ROUTES.password, {bioName: 'Touch ID'}).next).toEqual(['Use Touch ID']);
   });
 });
 

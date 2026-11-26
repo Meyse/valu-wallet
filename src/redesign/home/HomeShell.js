@@ -9,6 +9,7 @@ import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {createNativeBottomTabNavigator} from '@react-navigation/bottom-tabs/unstable';
 import {useDeeplinkForward} from '../state/useDeeplinkForward';
 import {colors} from '../theme/tokens';
+import BackupNavigator from '../backup/BackupNavigator';
 import BrandTabBar from './BrandTabBar';
 import HomeScreen from './HomeScreen';
 import PlaceholderScreen from './PlaceholderScreen';
@@ -65,6 +66,7 @@ export default function HomeShell({navigation}) {
       <Stack.Navigator screenOptions={{headerShown: false, cardStyle: {backgroundColor: colors.surface}}}>
         <Stack.Screen name="RedesignTabs" component={Tabs} />
         <Stack.Screen name="RedesignSettings" component={SettingsScreen} />
+        <Stack.Screen name="RedesignBackup" component={BackupNavigator} />
       </Stack.Navigator>
     </ThemeProvider>
   );

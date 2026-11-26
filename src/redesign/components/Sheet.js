@@ -2,7 +2,7 @@
 // Backdrop: the real screen, blurred, under #1C1C1F at 94 %. Card: #292929 with the rebuilt
 // 1 px gradient border, floating 24 above the bottom edge.
 import React, {createContext, useContext, useEffect, useState} from 'react';
-import {Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Animated, {
   FadeIn,
@@ -13,6 +13,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
@@ -95,10 +96,24 @@ export function SheetFrame({visible, onClose, grabber = false, cardStyle, childr
       if (e.translationY > 80 || e.velocityY > 800) runOnJS(close)();
       else drag.value = withSpring(0, {damping: 20, stiffness: 260});
     });
-  const dragStyle = useAnimatedStyle(() => ({transform: [{translateY: drag.value}]}));
-
   const width = Math.min(CARD_WIDTH, screenW - 32);
   const bottom = Math.max(24, insets.bottom + 8);
+
+  // iOS: a sheet with a text field rises with the keyboard and stays 12 above it. Android pans the
+  // window itself (adjustPan).
+  const lift = useSharedValue(0);
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return undefined;
+    const move = to => e => {
+      lift.value = withTiming(to(e), {duration: e?.duration || 250});
+    };
+    const subs = [
+      Keyboard.addListener('keyboardWillShow', move(e => Math.max(0, e.endCoordinates.height + 12 - bottom))),
+      Keyboard.addListener('keyboardWillHide', move(() => 0)),
+    ];
+    return () => subs.forEach(sub => sub.remove());
+  }, [bottom, lift]);
+  const dragStyle = useAnimatedStyle(() => ({transform: [{translateY: drag.value - lift.value}]}));
 
   return (
     <Modal

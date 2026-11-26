@@ -244,24 +244,71 @@ function useKeyboardHeight() {
   return height;
 }
 
+// Paper: with the keyboard open, the button sits 12 above the keyboard.
+const KEYBOARD_GAP = 12;
+// Paper: the title sits 8 below the top of the scroll area when the keyboard is open.
+const TITLE_TOP = 8;
+const CONTENT_TOP = 32;
+
 function DenseScreenIos({topBar, children, footer, scrollRef}) {
   const top = useTopBarTop();
   const column = useColumnWidth();
   const bottomGap = useBottomGap();
   const keyboard = useAnimatedKeyboard();
+  const lift = h => (h > 0 ? Math.max(0, h + KEYBOARD_GAP - bottomGap) : 0);
+  const ownScroll = useRef(null);
+  const content = useRef(null);
+  const title = useRef(null);
+  const size = useRef({full: 0, content: 0});
+  const marginNow = useRef(0);
+  const setScroll = node => {
+    ownScroll.current = node;
+    if (typeof scrollRef === 'function') scrollRef(node);
+    else if (scrollRef) scrollRef.current = node;
+  };
   const keyboardHeight = useKeyboardHeight();
-  const ride = useAnimatedStyle(() => ({transform: [{translateY: -keyboard.height.value}]}));
+  const margin = lift(keyboardHeight);
+  marginNow.current = margin;
+  // Keyboard opens: scroll the title to the top, as far as the content can scroll. After the
+  // scroll area has its smaller size: a scroll while the content still fits does nothing.
+  useEffect(() => {
+    if (!margin) return undefined;
+    let alive = true;
+    requestAnimationFrame(() => {
+      if (!alive || !title.current || !content.current) return;
+      title.current.measureLayout(
+        content.current,
+        (x, y) => {
+          // The full height minus the keyboard lift: onLayout may not have run yet.
+          const max = Math.max(0, size.current.content - (size.current.full - margin));
+          ownScroll.current?.scrollTo({y: Math.min(max, Math.max(0, y + CONTENT_TOP - TITLE_TOP)), animated: true});
+        },
+        () => {},
+      );
+    });
+    return () => {
+      alive = false;
+    };
+  }, [margin]);
+  const ride = useAnimatedStyle(() => {
+    const h = keyboard.height.value;
+    return {transform: [{translateY: -(h > 0 ? Math.max(0, h + KEYBOARD_GAP - bottomGap) : 0)}]};
+  });
   return (
     <View style={styles.flex}>
       <FadeView style={styles.flex}>
         <ScrollView
-          ref={scrollRef}
-          style={[styles.flex, {marginTop: top + BACK_SIZE + 8, marginBottom: keyboardHeight}]}
-          contentContainerStyle={{paddingTop: 32, paddingBottom: 24, alignItems: 'center'}}
+          ref={setScroll}
+          style={[styles.flex, {marginTop: top + BACK_SIZE + 8, marginBottom: margin}]}
+          contentContainerStyle={{paddingTop: CONTENT_TOP, paddingBottom: 24, alignItems: 'center'}}
+          onLayout={e => (size.current.full = e.nativeEvent.layout.height + marginNow.current)}
+          onContentSizeChange={(w, h) => (size.current.content = h)}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}>
-          <View style={{width: column}}>{children}</View>
+          <View ref={content} style={{width: column}}>
+            <TitleAnchorContext.Provider value={title}>{children}</TitleAnchorContext.Provider>
+          </View>
         </ScrollView>
         {footer ? (
           <Reanimated.View style={[styles.footer, {paddingBottom: bottomGap}, ride]}>
@@ -279,10 +326,25 @@ export function DenseScreen(props) {
   return <DenseScreenAndroid {...props} />;
 }
 
+function useAndroidKeyboardOpen() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const subs = [
+      Keyboard.addListener('keyboardDidShow', () => setOpen(true)),
+      Keyboard.addListener('keyboardDidHide', () => setOpen(false)),
+    ];
+    return () => subs.forEach(sub => sub.remove());
+  }, []);
+  return open;
+}
+
 function DenseScreenAndroid({topBar, children, footer, scrollRef}) {
   const top = useTopBarTop();
   const column = useColumnWidth();
-  const bottomGap = useBottomGap();
+  const keyboardOpen = useAndroidKeyboardOpen();
+  // Paper: with the keyboard open, the button sits 12 above the keyboard.
+  const restGap = useBottomGap();
+  const bottomGap = keyboardOpen ? KEYBOARD_GAP : restGap;
   return (
     <View style={styles.flex}>
       {/* Android keeps adjustPan for the old UI; the padding lifts the fields and the button above
@@ -311,13 +373,28 @@ function DenseScreenAndroid({topBar, children, footer, scrollRef}) {
   );
 }
 
-export function Heading({title, body, gap = 8}) {
-  return (
+// Title and body (gap 8). With an icon (the step icon of the step list): icon, then the heading, gap 16.
+// DenseScreenIos scrolls the screen title to the top when the keyboard opens (Paper "Create 03
+// state - Keyboard open"). The Heading gives it the title view.
+const TitleAnchorContext = createContext(null);
+
+export function Heading({title, body, gap = 8, icon}) {
+  const anchor = useContext(TitleAnchorContext);
+  const heading = (
     <View style={{gap}}>
-      <Text style={[type.title, {color: colors.text}]} accessibilityRole="header">
+      <Text ref={anchor} style={[type.title, {color: colors.text}]} accessibilityRole="header">
         {title}
       </Text>
       {body ? <Text style={[type.bodyLarge, {color: colors.textSecondary}]}>{body}</Text> : null}
+    </View>
+  );
+  if (!icon) return heading;
+  return (
+    <View style={{gap: 16}}>
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {icon}
+      </View>
+      {heading}
     </View>
   );
 }
@@ -341,6 +418,7 @@ export function LogoTile({tileStyle, onPress}) {
 
 // Step list (R07, R09): done steps with a check, next steps dimmed.
 export function DoneSteps({steps}) {
+  if (!steps.length) return null;
   return (
     <View style={{gap: 16}}>
       {steps.map(name => (
@@ -362,6 +440,24 @@ export function NextSteps({steps}) {
           {name}
         </Text>
       ))}
+    </View>
+  );
+}
+
+// The team step list inside a dense screen (Paper round 8): done steps above, the current step
+// block (children: step icon, title, body, fields) 40 below them, next steps 40 below the block
+// (Paper "Create 03": block ends 587, next steps at 627). It is screen content, so it fades and
+// slides with the card.
+export function StepList({done = [], next = [], children}) {
+  return (
+    <View>
+      <DoneSteps steps={done} />
+      <View style={done.length ? {marginTop: 40} : null}>{children}</View>
+      {next.length ? (
+        <View style={{marginTop: 40}}>
+          <NextSteps steps={next} />
+        </View>
+      ) : null}
     </View>
   );
 }

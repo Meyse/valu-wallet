@@ -37,16 +37,22 @@ export const nextRoute = (path, current, {biometry = true} = {}) => {
   return next;
 };
 
-// Thin progress bar on dense screens: [done, total].
-export const progressFor = (path, route) => {
-  if (path === 'import') {
-    if (IMPORT_LANES.includes(route)) return [1, 3];
-    if (route === ROUTES.password) return [2, 3];
-    return [3, 3];
-  }
-  return route === ROUTES.password ? [1, 2] : [2, 2];
+// Team step list (Paper round 8) on the step screens: steps done above, the current one, steps next.
+// Create: Create password, Use Face ID. Import: Import wallet, Create password, Use Face ID. The
+// first screen of each import lane (phrase, key, NFC chip password) is the Import wallet step. The
+// Face ID step is left out when the phone has no biometry (as in nextRoute). `bioName` is the name
+// of this phone's biometry ("Face ID", "Touch ID").
+export const stepListFor = (path, route = ROUTES.faceId, {biometry = true, bioName = 'Face ID'} = {}) => {
+  const steps = [
+    ...(path === 'import' ? [{route: ROUTES.importPhrase, name: 'Import wallet'}] : []),
+    {route: ROUTES.password, name: 'Create password'},
+    ...(biometry ? [{route: ROUTES.faceId, name: `Use ${bioName}`}] : []),
+  ];
+  const at = steps.findIndex(s => s.route === (IMPORT_LANES.includes(route) ? ROUTES.importPhrase : route));
+  if (at < 0) return {done: [], current: null, next: []};
+  return {
+    done: steps.slice(0, at).map(s => s.name),
+    current: steps[at].name,
+    next: steps.slice(at + 1).map(s => s.name),
+  };
 };
-
-// Step list on the Face ID step (Create 04, Import next 2): done steps above the icon.
-export const stepListFor = path =>
-  path === 'import' ? {done: ['Import wallet', 'Create password'], next: []} : {done: ['Create password'], next: []};

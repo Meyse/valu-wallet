@@ -4,9 +4,11 @@ import {Platform, StyleSheet, TextInput, View} from 'react-native';
 // Same clipboard API as the rest of the app (SendWizardRecipient, AddressBook).
 import {Clipboard} from 'react-native';
 import ValuButton, {TextLink} from '../../components/ValuButton';
-import {DenseScreen, ErrorText, Heading, TopBar, useFocusOnArrival} from '../../components/Layout';
+import {DenseScreen, ErrorText, Heading, StepList, TopBar, useFocusOnArrival} from '../../components/Layout';
+import StepIcon from '../../components/StepIcons';
 import {checkPrivateKey} from '../../logic/importValidation';
-import {ROUTES, nextRoute, progressFor} from '../../logic/steps';
+import {biometryName} from '../../logic/biometry';
+import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
 import {colors, radius, type} from '../../theme/tokens';
 import {useOnboarding} from '../OnboardingContext';
 
@@ -21,6 +23,10 @@ export default function ImportKey({navigation}) {
   const [focused, setFocused] = useState(false);
   const [checked, setChecked] = useState(false);
   const input = useRef(null);
+  const steps = stepListFor('import', ROUTES.importKey, {
+    biometry: ob.biometry?.biometry === true,
+    bioName: biometryName(ob.biometry),
+  });
 
   useFocusOnArrival(() => input.current?.focus());
 
@@ -50,53 +56,54 @@ export default function ImportKey({navigation}) {
 
   return (
     <DenseScreen
-        topBar={
-          <TopBar
-            onBack={() => navigation.goBack()}
-            progress={progressFor('import', ROUTES.importKey)}
-          />
-        }
+        topBar={<TopBar onBack={() => navigation.goBack()} />}
         footer={
           <ValuButton label="Continue" onPress={next} disabled={result.status !== 'valid'} testID="key-continue" />
         }>
-        <View style={styles.content}>
-          <Heading title="Enter your private key" body="Type or paste the key of your wallet." />
-          <View>
-            <View style={[styles.field, focused && styles.focused, invalid && styles.error]}>
-              <TextInput
-                ref={input}
-                value={key}
-                onChangeText={text => {
-                  setKey(text);
-                  if (checked && checkPrivateKey(text).status === 'valid') setChecked(false);
-                }}
-                onFocus={() => setFocused(true)}
-                onBlur={() => {
-                  setFocused(false);
-                  if (key.length > 0) setChecked(true);
-                }}
-                multiline
-                // A key has no line breaks: Done closes the keyboard and checks the key.
-                submitBehavior="blurAndSubmit"
-                returnKeyType="done"
-                onSubmitEditing={() => key.length > 0 && setChecked(true)}
-                autoCapitalize="none"
-                selectionColor={colors.accent}
-                cursorColor={colors.accent}
-                accessibilityLabel="Private key"
-                style={[type.label, styles.input]}
-                testID="key-input"
-                {...NO_AUTOFILL}
-              />
+        <StepList done={steps.done} next={steps.next}>
+          <View style={styles.content}>
+            <Heading
+              icon={<StepIcon name="import" />}
+              title="Enter your private key"
+              body="Type or paste the key of your wallet."
+            />
+            <View>
+              <View style={[styles.field, focused && styles.focused, invalid && styles.error]}>
+                <TextInput
+                  ref={input}
+                  value={key}
+                  onChangeText={text => {
+                    setKey(text);
+                    if (checked && checkPrivateKey(text).status === 'valid') setChecked(false);
+                  }}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => {
+                    setFocused(false);
+                    if (key.length > 0) setChecked(true);
+                  }}
+                  multiline
+                  // A key has no line breaks: Done closes the keyboard and checks the key.
+                  submitBehavior="blurAndSubmit"
+                  returnKeyType="done"
+                  onSubmitEditing={() => key.length > 0 && setChecked(true)}
+                  autoCapitalize="none"
+                  selectionColor={colors.accent}
+                  cursorColor={colors.accent}
+                  accessibilityLabel="Private key"
+                  style={[type.label, styles.input]}
+                  testID="key-input"
+                  {...NO_AUTOFILL}
+                />
+              </View>
+              <ErrorText style={{marginTop: 8}}>
+                {invalid ? 'This key is not valid. Check it and try again.' : null}
+              </ErrorText>
             </View>
-            <ErrorText style={{marginTop: 8}}>
-              {invalid ? 'This key is not valid. Check it and try again.' : null}
-            </ErrorText>
+            <View style={styles.links}>
+              <TextLink label="Paste key" onPress={paste} testID="key-paste" />
+            </View>
           </View>
-          <View style={styles.links}>
-            <TextLink label="Paste key" onPress={paste} testID="key-paste" />
-          </View>
-        </View>
+        </StepList>
     </DenseScreen>
   );
 }
