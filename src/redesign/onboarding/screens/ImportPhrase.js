@@ -81,6 +81,8 @@ export default function ImportPhrase({navigation}) {
   }
 
   const setLength = n => {
+    // The selected length again changes nothing: it must not clear a refused-paste error.
+    if (n === count) return;
     setCount(n);
     setWords(prev => Array.from({length: n}, (_, i) => prev[i] ?? ''));
     setPasteError(null);
