@@ -1,6 +1,9 @@
 // Shared layout parts of the redesigned onboarding (Paper p-2-0; Android Brand p-3-0).
-import React from 'react';
+import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
+import {NavigationContext} from '@react-navigation/native';
+import {CardAnimationContext} from '@react-navigation/stack';
 import {
+  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -40,7 +43,97 @@ export const useBottomGap = () => {
   return insets.bottom > 0 ? 32 : 16;
 };
 
-export function BackButton({onPress, icon = 'back', label = 'Back', testID = 'redesign-back'}) {
+// Onboarding screens cross-fade. The fade is on the content, not on the card: once a card has been
+// faded, Liquid Glass on it no longer renders (seen on iOS 26.5). The onboarding navigator turns it on.
+export const ContentFadeContext = createContext(false);
+
+export function FadeView({style, children, pointerEvents}) {
+  const enabled = useContext(ContentFadeContext);
+  const card = useContext(CardAnimationContext);
+  const current = card?.current?.progress;
+  const next = card?.next?.progress;
+  const opacity = useMemo(() => {
+    if (!enabled || !current) return null;
+    const incoming = current.interpolate({inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp'});
+    if (!next) return incoming;
+    return Animated.multiply(
+      incoming,
+      next.interpolate({inputRange: [0, 1], outputRange: [1, 0], extrapolate: 'clamp'}),
+    );
+  }, [enabled, current, next]);
+  if (!opacity) {
+    return (
+      <View style={style} pointerEvents={pointerEvents}>
+        {children}
+      </View>
+    );
+  }
+  return (
+    <Animated.View style={[style, {opacity}]} pointerEvents={pointerEvents}>
+      {children}
+    </Animated.View>
+  );
+}
+
+// Onboarding draws ONE glass circle for the back button, under the cards (SharedBackGlass in the
+// navigator). It never moves or fades between steps; each step draws only the icon above it.
+// A glass view on a card cannot do this: a faded card stops its glass, and a removed glass fades
+// out slowly over the next screen (iOS 26.5).
+export const SharedBackGlassContext = createContext(false);
+
+export function SharedBackGlass({visible}) {
+  const top = useTopBarTop();
+  if (IS_ANDROID || !visible) return null;
+  return (
+    <View pointerEvents="none" style={[styles.sharedGlass, {top}]}>
+      <GlassSurface interactive={false} style={styles.back} />
+    </View>
+  );
+}
+
+// Outside onboarding (Home settings) and on the camera screen the button has its own glass. It
+// shows once the card stops, so two glass buttons never overlap during a transition.
+function useAtRest(navigation) {
+  // A new card is not at rest yet: its transition starts right after the mount.
+  const [rest, setRest] = useState(!navigation);
+  useEffect(() => {
+    if (!navigation) return undefined;
+    // Fallback when the card opens without a transition.
+    let timer = navigation.isFocused() ? setTimeout(() => setRest(true), 550) : undefined;
+    const settle = () => {
+      clearTimeout(timer);
+      setRest(true);
+    };
+    const move = () => {
+      clearTimeout(timer);
+      setRest(false);
+    };
+    const offs = [
+      navigation.addListener('transitionStart', move),
+      navigation.addListener('transitionEnd', e => (e.data?.closing ? move() : settle())),
+      navigation.addListener('gestureStart', move),
+      navigation.addListener('gestureCancel', settle),
+      navigation.addListener('blur', move),
+      // A screen uncovered by Back gets no transition event of its own.
+      navigation.addListener('focus', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => setRest(true), 550);
+      }),
+    ];
+    return () => {
+      clearTimeout(timer);
+      offs.forEach(off => off());
+    };
+  }, [navigation]);
+  return rest;
+}
+
+export function BackButton({onPress, icon = 'back', label = 'Back', testID = 'redesign-back', ownGlass = false}) {
+  const navigation = useContext(NavigationContext);
+  const shared = useContext(SharedBackGlassContext) && !ownGlass;
+  const rest = useAtRest(navigation);
+  const glass = !IS_ANDROID && !shared && rest;
+  const fill = IS_ANDROID ? styles.backAndroid : !shared && !glass && styles.backPlain;
   return (
     <Pressable
       onPress={onPress}
@@ -48,10 +141,11 @@ export function BackButton({onPress, icon = 'back', label = 'Back', testID = 're
       accessibilityLabel={label}
       hitSlop={4}
       testID={testID}
-      style={styles.backHit}>
-      <GlassSurface style={[styles.back, IS_ANDROID && styles.backAndroid]}>
+      style={({pressed}) => [styles.backHit, pressed && {opacity: 0.7}]}>
+      {glass ? <GlassSurface interactive={false} style={[styles.back, StyleSheet.absoluteFill]} /> : null}
+      <FadeView style={[styles.back, fill]}>
         <Icon name={icon} />
-      </GlassSurface>
+      </FadeView>
     </Pressable>
   );
 }
@@ -95,13 +189,11 @@ export function TopBar({onBack, progress, right, backIcon, backLabel}) {
     <View style={[styles.topBar, {top}]} pointerEvents="box-none">
       {onBack ? <BackButton onPress={onBack} icon={backIcon} label={backLabel} /> : <View style={{width: BACK_SIZE}} />}
       {progress ? (
-        <ProgressBar
-          done={progress[0]}
-          total={progress[1]}
-          style={{position: 'absolute', left: 80 - SIDE, width: barWidth}}
-        />
+        <FadeView style={{position: 'absolute', left: 80 - SIDE, width: barWidth}}>
+          <ProgressBar done={progress[0]} total={progress[1]} />
+        </FadeView>
       ) : null}
-      {right ? <View style={styles.right}>{right}</View> : null}
+      {right ? <FadeView style={styles.right}>{right}</FadeView> : null}
     </View>
   );
 }
@@ -115,23 +207,25 @@ export function DenseScreen({topBar, children, footer, scrollRef}) {
     <View style={styles.flex}>
       {/* Android keeps adjustPan for the old UI; the padding lifts the fields and the button above
           the keyboard, and the pan then has nothing left to move. */}
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        {/* The scroll area starts under the top bar, so scrolled content never runs into it. */}
-        <ScrollView
-          ref={scrollRef}
-          style={[styles.flex, {marginTop: top + BACK_SIZE + 8}]}
-          contentContainerStyle={{paddingTop: 32, paddingBottom: 24, alignItems: 'center'}}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          showsVerticalScrollIndicator={false}>
-          <View style={{width: column}}>{children}</View>
-        </ScrollView>
-        {footer ? (
-          <View style={[styles.footer, {paddingBottom: bottomGap}]}>
-            <View style={{width: column}}>{footer}</View>
-          </View>
-        ) : null}
-      </KeyboardAvoidingView>
+      <FadeView style={styles.flex}>
+        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+          {/* The scroll area starts under the top bar, so scrolled content never runs into it. */}
+          <ScrollView
+            ref={scrollRef}
+            style={[styles.flex, {marginTop: top + BACK_SIZE + 8}]}
+            contentContainerStyle={{paddingTop: 32, paddingBottom: 24, alignItems: 'center'}}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            showsVerticalScrollIndicator={false}>
+            <View style={{width: column}}>{children}</View>
+          </ScrollView>
+          {footer ? (
+            <View style={[styles.footer, {paddingBottom: bottomGap}]}>
+              <View style={{width: column}}>{footer}</View>
+            </View>
+          ) : null}
+        </KeyboardAvoidingView>
+      </FadeView>
       {topBar}
     </View>
   );
@@ -221,6 +315,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   backAndroid: {width: 48, height: 48, borderRadius: 24, backgroundColor: colors.fillIconButton},
+  // Shown on iOS while cards move, in place of the glass.
+  backPlain: {backgroundColor: colors.fillIconButton},
+  sharedGlass: {position: 'absolute', left: SIDE, width: 44, height: 44},
   track: {height: 4, borderRadius: 2, backgroundColor: colors.progressTrack, overflow: 'hidden'},
   fill: {height: 4, borderRadius: 2, backgroundColor: colors.primary},
   pill: {

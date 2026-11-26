@@ -5,7 +5,7 @@ import {StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useIsFocused} from '@react-navigation/native';
 import {Camera, useCameraDevice, useCodeScanner} from 'react-native-vision-camera';
 import Svg, {Path} from 'react-native-svg';
-import {BackButton, useTopBarTop} from '../../components/Layout';
+import {BackButton, FadeView, useTopBarTop} from '../../components/Layout';
 import {classifyScannedText} from '../../logic/importValidation';
 import {ROUTES, nextRoute} from '../../logic/steps';
 import {colors, type} from '../../theme/tokens';
@@ -52,7 +52,8 @@ export default function ScanQr({navigation}) {
   const winTop = Math.round(height * (328 / 874));
 
   return (
-    <View style={styles.root} testID="scan-qr">
+    <View style={styles.flex} testID="scan-qr">
+      <FadeView style={styles.root}>
       {device && focused ? (
         <Camera style={StyleSheet.absoluteFill} device={device} isActive={focused} codeScanner={scanner} />
       ) : null}
@@ -73,15 +74,17 @@ export default function ScanQr({navigation}) {
         accessibilityLiveRegion="polite">
         {error ?? (device ? 'Hold the QR code inside the frame.' : 'No camera found on this device.')}
       </Text>
+      </FadeView>
       <View style={[styles.close, {top}]}>
-        <BackButton onPress={() => navigation.goBack()} icon="close" label="Close" testID="scan-close" />
+        <BackButton onPress={() => navigation.goBack()} icon="close" label="Close" testID="scan-close" ownGlass />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {flex: 1, backgroundColor: colors.surfaceRaised},
+  flex: {flex: 1},
+  root: {...StyleSheet.absoluteFillObject, backgroundColor: colors.surfaceRaised},
   corner: {position: 'absolute'},
   hint: {position: 'absolute', left: 36, right: 36, textAlign: 'center', color: colors.textSecondary},
   close: {position: 'absolute', left: 20},

@@ -8,6 +8,7 @@ import Sheet from '../../components/Sheet';
 import {ErrorText} from '../../components/Layout';
 import {getKey} from '../../../utils/keyGenerator/keyGenerator';
 import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
+import {biometryName} from '../../logic/biometry';
 import {useOnboarding} from '../OnboardingContext';
 
 export default function BackUp({navigation}) {
@@ -15,7 +16,10 @@ export default function BackUp({navigation}) {
   const [sheet, setSheet] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const steps = stepListFor('create', ROUTES.backUp, {biometry: ob.biometry?.biometry === true});
+  const steps = stepListFor('create', ROUTES.backUp, {
+    biometry: ob.biometry?.biometry === true,
+    bioName: biometryName(ob.biometry),
+  });
 
   const understand = async () => {
     setBusy(true);

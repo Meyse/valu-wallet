@@ -12,7 +12,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import {LogoTile, useBottomGap, useColumnWidth} from '../../components/Layout';
+import {FadeView, LogoTile, useBottomGap, useColumnWidth} from '../../components/Layout';
 import Sheet from '../../components/Sheet';
 import Icon from '../../components/Icon';
 import ValuButton, {TextLink} from '../../components/ValuButton';
@@ -110,7 +110,7 @@ export default function Creating({navigation}) {
   };
 
   return (
-    <View style={styles.root}>
+    <FadeView style={styles.root}>
       <View style={[styles.center, phase === 'ready' && {justifyContent: 'flex-start', paddingTop: Math.round(height * (200 / 874))}]}>
         <View style={[styles.group, {width: Math.min(298, column)}]}>
           <LogoTile />
@@ -152,7 +152,7 @@ export default function Creating({navigation}) {
         testID="ready-sheet"
         buttons={[{label: 'Go to wallet', variant: 'accent', onPress: goToWallet, testID: 'ready-go'}]}
       />
-    </View>
+    </FadeView>
   );
 }
 

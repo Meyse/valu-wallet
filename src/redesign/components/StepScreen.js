@@ -3,7 +3,7 @@
 import React from 'react';
 import {ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {colors, type} from '../theme/tokens';
-import {BACK_SIZE, DoneSteps, LogoTile, NextSteps, TopBar, useBottomGap, useTopBarTop} from './Layout';
+import {BACK_SIZE, DoneSteps, FadeView, LogoTile, NextSteps, TopBar, useBottomGap, useTopBarTop} from './Layout';
 
 export default function StepScreen({onBack, done, icon, title, body, next, actions}) {
   const top = useTopBarTop();
@@ -12,26 +12,28 @@ export default function StepScreen({onBack, done, icon, title, body, next, actio
   const column = Math.min(330, width - 72);
   return (
     <View style={styles.root}>
-      <ScrollView
-        contentContainerStyle={[styles.scroll, {paddingTop: top + BACK_SIZE + 13, paddingBottom: bottomGap - 8}]}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.tile}>
-          <LogoTile />
-        </View>
-        <View style={styles.spacer} />
-        <View style={{width: column, alignSelf: 'center'}}>
-          <DoneSteps steps={done} />
-          <View style={[styles.current, {width: Math.min(342, width - 60)}]}>
-            {icon}
-            <Text style={[type.title, {color: colors.text}]} accessibilityRole="header">
-              {title}
-            </Text>
-            <Text style={[type.bodyLarge, {color: colors.textSecondary}]}>{body}</Text>
+      <FadeView style={styles.root}>
+        <ScrollView
+          contentContainerStyle={[styles.scroll, {paddingTop: top + BACK_SIZE + 13, paddingBottom: bottomGap - 8}]}
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.tile}>
+            <LogoTile />
           </View>
-          <NextSteps steps={next} />
-          <View style={[styles.actions, !next.length && {marginTop: 40}]}>{actions}</View>
-        </View>
-      </ScrollView>
+          <View style={styles.spacer} />
+          <View style={{width: column, alignSelf: 'center'}}>
+            <DoneSteps steps={done} />
+            <View style={[styles.current, {width: Math.min(342, width - 60)}]}>
+              {icon}
+              <Text style={[type.title, {color: colors.text}]} accessibilityRole="header">
+                {title}
+              </Text>
+              <Text style={[type.bodyLarge, {color: colors.textSecondary}]}>{body}</Text>
+            </View>
+            <NextSteps steps={next} />
+            <View style={[styles.actions, !next.length && {marginTop: 40}]}>{actions}</View>
+          </View>
+        </ScrollView>
+      </FadeView>
       <TopBar onBack={onBack} />
     </View>
   );

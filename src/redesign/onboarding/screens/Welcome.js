@@ -1,6 +1,7 @@
 // R02 Welcome, entered from the R01 splash: the logo moves up into its tile, the copy and
 // the buttons fade in, and the shared background fades in (mockup intro).
-// Copy: the team artboard "Onboarding 02 - Take control" (Paper p-1-0), verbatim, as Max asked.
+// Copy: the team artboard "Onboarding 02 - Take control" (Paper p-1-0), with the apostrophe in
+// "Let's" added (Max, 2026-11-26).
 import React, {useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import Animated, {
@@ -12,7 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import {colors, type} from '../../theme/tokens';
 import ValuButton, {TextLink} from '../../components/ValuButton';
-import {LogoTile, useBottomGap, useColumnWidth} from '../../components/Layout';
+import {FadeView, LogoTile, useBottomGap, useColumnWidth} from '../../components/Layout';
 import Sheet from '../../components/Sheet';
 import {useOnboarding} from '../OnboardingContext';
 import {ROUTES} from '../../logic/steps';
@@ -71,7 +72,7 @@ export default function Welcome({navigation}) {
   };
 
   return (
-    <View style={styles.root}>
+    <FadeView style={styles.root}>
       <View style={styles.center}>
         <View style={[styles.group, {width: Math.min(298, column)}]}>
           <Animated.View style={logoStyle}>
@@ -82,7 +83,7 @@ export default function Welcome({navigation}) {
               {'Take control of\nyour identity'}
             </Text>
             <Text style={[type.bodyLarge, styles.body]}>
-              Lets start with the creation of a personal, locally stored profile
+              {"Let's start with the creation of a personal, locally stored profile"}
             </Text>
             {ob.testProfile ? <Text style={[type.body, styles.test]}>Testnet wallet</Text> : null}
           </Animated.View>
@@ -116,7 +117,7 @@ export default function Welcome({navigation}) {
           {label: 'Cancel', onPress: () => setTestSheet(false)},
         ]}
       />
-    </View>
+    </FadeView>
   );
 }
 

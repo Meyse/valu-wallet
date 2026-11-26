@@ -59,7 +59,7 @@ export const progressFor = (path, route) => {
 
 // Step list on icon-led screens (R07, R09): names of done and next steps.
 // The Face ID step is left out when the device has no biometry.
-export const stepListFor = (path, route, {biometry = true} = {}) => {
+export const stepListFor = (path, route, {biometry = true, bioName = 'Face ID'} = {}) => {
   if (path === 'import') {
     return {done: ['Import phrase', 'Create password'], next: []};
   }
@@ -67,7 +67,7 @@ export const stepListFor = (path, route, {biometry = true} = {}) => {
     return {done: ['Create password'], next: ['Back up wallet', 'Verify phrase']};
   }
   // ROUTES.backUp
-  return {done: biometry ? ['Create password', 'Use Face ID'] : ['Create password'], next: ['Verify phrase']};
+  return {done: biometry ? ['Create password', `Use ${bioName}`] : ['Create password'], next: ['Verify phrase']};
 };
 
 // Screens where the shared background moves up so the content has room.

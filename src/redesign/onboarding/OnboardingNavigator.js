@@ -1,12 +1,13 @@
 // Redesigned onboarding (R01 to R15). The shared background is mounted once here, behind the
 // stack, so its clock never resets on navigation. Screens have transparent cards.
-import React, {useEffect, useMemo, useRef} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {StatusBar, StyleSheet, View} from 'react-native';
 import {createStackNavigator} from '@react-navigation/stack';
 import {ThemeProvider, useTheme} from '@react-navigation/native';
 import {colors} from '../theme/tokens';
 import OnboardingBackground, {useBackgroundControls} from '../components/OnboardingBackground';
 import {BackdropSourceContext} from '../components/Sheet';
+import {ContentFadeContext, SharedBackGlass, SharedBackGlassContext} from '../components/Layout';
 import {DENSE_ROUTES, ROUTES} from '../logic/steps';
 import {getSupportedBiometryType} from '../../utils/keychain/keychain';
 import {OnboardingProvider, useOnboarding} from './OnboardingContext';
@@ -28,12 +29,10 @@ const Stack = createStackNavigator();
 export const DENSE_LIFT = -230;
 
 // Cards are transparent over the shared background, so screens cross-fade with a short
-// slide instead of sliding over each other.
+// slide instead of sliding over each other. The fade is on the screen content (FadeView in
+// Layout.js), not on the card: a faded card stops Liquid Glass on it.
 const fadeSlide = ({current, next, layouts}) => ({
   cardStyle: {
-    opacity: next
-      ? next.progress.interpolate({inputRange: [0, 1], outputRange: [1, 0]})
-      : current.progress.interpolate({inputRange: [0, 1], outputRange: [0, 1]}),
     transform: [
       {
         translateX: next
@@ -59,8 +58,12 @@ function BiometryProbe() {
   return null;
 }
 
-function Screens({background}) {
+// Steps without the back button: the shared glass circle hides there.
+const NO_BACK = [ROUTES.welcome, ROUTES.creating, ROUTES.scanQr];
+
+function Screens({background, onRoute}) {
   const onFocus = name => {
+    onRoute(name);
     background.setLift(DENSE_ROUTES.includes(name) ? DENSE_LIFT : 0);
     // No glow on the camera screen (DESIGN.md).
     if (name === ROUTES.scanQr) background.fadeTo(0, 300);
@@ -99,6 +102,7 @@ export default function OnboardingNavigator({navigation}) {
     [theme],
   );
   const background = useBackgroundControls();
+  const [route, setRoute] = useState(ROUTES.welcome);
   useDeeplinkForward(navigation);
 
   return (
@@ -109,7 +113,12 @@ export default function OnboardingNavigator({navigation}) {
         <View ref={root} collapsable={false} style={styles.root}>
           <OnboardingBackground lift={background.lift} opacity={background.opacity} />
           <ThemeProvider value={clearTheme}>
-            <Screens background={background} />
+            <SharedBackGlass visible={!NO_BACK.includes(route)} />
+            <ContentFadeContext.Provider value={true}>
+              <SharedBackGlassContext.Provider value={true}>
+                <Screens background={background} onRoute={setRoute} />
+              </SharedBackGlassContext.Provider>
+            </ContentFadeContext.Provider>
           </ThemeProvider>
         </View>
       </OnboardingProvider>

@@ -26,7 +26,7 @@ import Sheet from '../components/Sheet';
 import ValuButton, {TextLink} from '../components/ValuButton';
 import {ErrorText, LogoTile, useBottomGap, useColumnWidth, useTopBarTop} from '../components/Layout';
 import Icon from '../components/Icon';
-import {biometryName} from '../onboarding/screens/UseFaceId';
+import {biometryName} from '../logic/biometry';
 import {setRedesignEnabled} from '../state/redesignState';
 import {useDeeplinkForward} from '../state/useDeeplinkForward';
 import {colors, radius, type} from '../theme/tokens';
@@ -54,6 +54,13 @@ export default function ReturningUser({navigation}) {
   const dispatch = useDispatch();
   const root = useRef(null);
   const input = useRef(null);
+  const scroll = useRef(null);
+
+  // The form is at the bottom: when the keyboard opens, show the field and the Unlock button.
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => scroll.current?.scrollToEnd({animated: true}));
+    return () => sub.remove();
+  }, []);
   const background = useBackgroundControls();
   const top = useTopBarTop();
   const column = useColumnWidth();
@@ -145,6 +152,7 @@ export default function ReturningUser({navigation}) {
         <OnboardingBackground lift={background.lift} opacity={background.opacity} />
         <KeyboardAvoidingView style={styles.flex} behavior="padding">
           <ScrollView
+            ref={scroll}
             contentContainerStyle={[styles.scroll, {paddingTop: top + 57, paddingBottom: bottomGap}]}
             keyboardShouldPersistTaps="handled">
             <View style={styles.tile}>

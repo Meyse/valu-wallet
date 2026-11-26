@@ -1,23 +1,12 @@
 // R07 Use Face ID. "Turn on Face ID" lets the OS ask for access (R08 is the system prompt).
 import React, {useState} from 'react';
-import {Platform} from 'react-native';
-import * as Keychain from 'react-native-keychain';
 import StepScreen from '../../components/StepScreen';
 import ValuButton, {TextLink} from '../../components/ValuButton';
 import Icon from '../../components/Icon';
 import {ErrorText} from '../../components/Layout';
 import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
 import {useOnboarding} from '../OnboardingContext';
-
-// The name the OS uses for this device's biometry.
-export const biometryName = biometry => {
-  const t = biometry?.type;
-  if (t === Keychain.BIOMETRY_TYPE.FACE_ID) return 'Face ID';
-  if (t === Keychain.BIOMETRY_TYPE.TOUCH_ID) return 'Touch ID';
-  if (t === Keychain.BIOMETRY_TYPE.FINGERPRINT) return 'fingerprint unlock';
-  if (t === Keychain.BIOMETRY_TYPE.FACE) return 'face unlock';
-  return Platform.OS === 'ios' ? 'Face ID' : 'biometric unlock';
-};
+import {biometryName} from '../../logic/biometry';
 
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
