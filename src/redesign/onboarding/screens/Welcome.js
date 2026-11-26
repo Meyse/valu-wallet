@@ -3,7 +3,7 @@
 // Copy: the team artboard "Onboarding 02 - Take control" (Paper p-1-0), with the apostrophe in
 // "Let's" added (Max, 2026-11-26).
 import React, {useEffect, useRef, useState} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {Platform, StyleSheet, Text, View} from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -21,6 +21,8 @@ import {ROUTES} from '../../logic/steps';
 import ImportWaySheet from '../import/ImportWaySheet';
 import {useCameraGate} from '../import/cameraGate';
 import {chipSeedHasZ, useNfcRead} from '../import/nfcImport';
+
+const IS_ANDROID = Platform.OS === 'android';
 
 // A sheet must be gone before the next one (or the system NFC sheet) opens.
 const AFTER_SHEET_MS = 320;
@@ -147,6 +149,17 @@ export default function Welcome({navigation}) {
       </Animated.View>
       <ImportWaySheet visible={waySheet} onClose={() => setWaySheet(false)} onChoose={choose} />
       {camera.element}
+      {/* Android has no system NFC sheet: while the phone waits for the chip, this sheet shows it
+          and covers Welcome, so no other path can start under a running read (not in Paper). */}
+      <Sheet
+        visible={IS_ANDROID && nfc.reading && nfcError == null}
+        onClose={nfc.cancel}
+        icon={<Icon name="nfcCard48" />}
+        title="Hold the chip"
+        body="Hold the chip against the back of your phone."
+        testID="nfc-hold-sheet"
+        buttons={[{label: 'Cancel', onPress: nfc.cancel, testID: 'nfc-hold-cancel'}]}
+      />
       <Sheet
         visible={nfcError != null}
         onClose={() => setNfcError(null)}

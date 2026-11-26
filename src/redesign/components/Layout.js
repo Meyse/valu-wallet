@@ -1,5 +1,5 @@
 // Shared layout parts of the redesigned onboarding (Paper p-2-0; Android Brand p-3-0).
-import React, {createContext, useContext, useEffect, useMemo, useRef, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {NavigationContext} from '@react-navigation/native';
 import {CardAnimationContext} from '@react-navigation/stack';
 import {
@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -338,6 +339,13 @@ function useAndroidKeyboardOpen() {
   return open;
 }
 
+// Android: scrolls the focused field into view above the button. DenseScreenAndroid gives it; on iOS
+// it is null (DenseScreenIos moves the title to the top instead).
+const RevealFocusedContext = createContext(null);
+export const useRevealFocused = () => useContext(RevealFocusedContext);
+// Room under the focused field, so a one-line error under it shows too.
+const REVEAL_MARGIN = 28;
+
 function DenseScreenAndroid({topBar, children, footer, scrollRef}) {
   const top = useTopBarTop();
   const column = useColumnWidth();
@@ -345,6 +353,28 @@ function DenseScreenAndroid({topBar, children, footer, scrollRef}) {
   // Paper: with the keyboard open, the button sits 12 above the keyboard.
   const restGap = useBottomGap();
   const bottomGap = keyboardOpen ? KEYBOARD_GAP : restGap;
+  const scroll = useRef(null);
+  const inner = useRef(null);
+  const view = useRef({height: 0, y: 0});
+  const setScroll = node => {
+    scroll.current = node;
+    if (typeof scrollRef === 'function') scrollRef(node);
+    else if (scrollRef) scrollRef.current = node;
+  };
+  // The keyboard shrinks the scroll area: a field low on the screen then sits under the button.
+  const reveal = useCallback(() => {
+    const input = TextInput.State.currentlyFocusedInput?.();
+    if (!input || !inner.current || !scroll.current) return;
+    input.measureLayout(
+      inner.current,
+      (x, y, w, h) => {
+        const bottom = CONTENT_TOP + y + h + REVEAL_MARGIN;
+        const {height, y: offset} = view.current;
+        if (height > 0 && bottom > offset + height) scroll.current?.scrollTo({y: bottom - height, animated: true});
+      },
+      () => {},
+    );
+  }, []);
   return (
     <View style={styles.flex}>
       {/* Android keeps adjustPan for the old UI; the padding lifts the fields and the button above
@@ -353,13 +383,23 @@ function DenseScreenAndroid({topBar, children, footer, scrollRef}) {
         <KeyboardAvoidingView style={styles.flex} behavior="padding">
           {/* The scroll area starts under the top bar, so scrolled content never runs into it. */}
           <ScrollView
-            ref={scrollRef}
+            ref={setScroll}
             style={[styles.flex, {marginTop: top + BACK_SIZE + 8}]}
-            contentContainerStyle={{paddingTop: 32, paddingBottom: 24, alignItems: 'center'}}
+            contentContainerStyle={{paddingTop: CONTENT_TOP, paddingBottom: 24, alignItems: 'center'}}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            showsVerticalScrollIndicator={false}>
-            <View style={{width: column}}>{children}</View>
+            showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={e => {
+              view.current.y = e.nativeEvent.contentOffset.y;
+            }}
+            onLayout={e => {
+              view.current.height = e.nativeEvent.layout.height;
+              reveal();
+            }}>
+            <View ref={inner} style={{width: column}}>
+              <RevealFocusedContext.Provider value={reveal}>{children}</RevealFocusedContext.Provider>
+            </View>
           </ScrollView>
           {footer ? (
             <View style={[styles.footer, {paddingBottom: bottomGap}]}>

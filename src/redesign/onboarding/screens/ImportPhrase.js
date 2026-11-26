@@ -12,6 +12,7 @@ import {checkPhrase, normalizeWord, parsePastedPhrase, placeWords} from '../../l
 import {biometryName} from '../../logic/biometry';
 import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
 import {useOnboarding} from '../OnboardingContext';
+import {chipSeedHasZ} from '../import/nfcImport';
 
 const SWITCH = [
   {value: 12, label: '12 words'},
@@ -110,6 +111,9 @@ export default function ImportPhrase({navigation}) {
   const next = () => {
     if (!canContinue) return;
     ob.setSecret(result.phrase);
+    // A 24-word BIP39 phrase also gives the shielded (Z) seed, as a chip import does: a new Valu
+    // wallet makes its Z address from its 24 words, so typing the backup back in must restore it.
+    ob.setSeedHasZ(chipSeedHasZ(result.phrase));
     navigation.navigate(nextRoute('import', ROUTES.importPhrase));
   };
 

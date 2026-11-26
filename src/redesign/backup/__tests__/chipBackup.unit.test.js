@@ -1,17 +1,24 @@
 // The chip lane shows the library's English errors as redesign copy. The messages below are the
 // ones src/utils/walletBackup/walletBackupNfc.js throws.
-jest.mock('react-native-nfc-manager', () => ({isSupported: jest.fn(), setAlertMessageIOS: jest.fn()}));
+jest.mock('react-native-nfc-manager', () => ({
+  isSupported: jest.fn(),
+  setAlertMessageIOS: jest.fn(),
+  NfcError: jest.requireActual('react-native-nfc-manager/src/NfcError'),
+}));
 jest.mock('../../../utils/walletBackup/walletBackup', () => ({}));
 jest.mock('../../../utils/walletBackup/walletBackupNfc', () => ({}));
 jest.mock('../../../utils/keepAwake/keepAwake', () => ({}));
 
 const {chipWriteError} = require('../chipBackup');
+const {NfcError} = require('react-native-nfc-manager');
 
 const title = message => chipWriteError(new Error(message))?.title;
 
 describe('chipWriteError', () => {
   it('shows nothing when the user cancels the system sheet', () => {
     expect(chipWriteError(new Error('UserCancel'))).toBeNull();
+    // The library's own cancel error has an empty message.
+    expect(chipWriteError(new NfcError.UserCancel())).toBeNull();
   });
 
   it('sends a phone without NFC to the words lane', () => {

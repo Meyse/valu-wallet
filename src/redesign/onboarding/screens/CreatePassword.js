@@ -2,7 +2,15 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Dimensions, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import ValuButton from '../../components/ValuButton';
-import {DenseScreen, ErrorText, Heading, StepList, TopBar, useFocusOnArrival} from '../../components/Layout';
+import {
+  DenseScreen,
+  ErrorText,
+  Heading,
+  StepList,
+  TopBar,
+  useFocusOnArrival,
+  useRevealFocused,
+} from '../../components/Layout';
 import Icon from '../../components/Icon';
 import StepIcon from '../../components/StepIcons';
 import {getPasswordGate} from '../../logic/password';
@@ -93,6 +101,7 @@ export default function CreatePassword({navigation}) {
   const scroll = useRef(null);
   const reveal = useRef(null);
   const gate = getPasswordGate(password, confirm);
+  const revealFocused = useRevealFocused();
   const steps = stepListFor(ob.path, ROUTES.password, {
     biometry: ob.biometry?.biometry === true,
     bioName: biometryName(ob.biometry),
@@ -106,6 +115,11 @@ export default function CreatePassword({navigation}) {
   // (Paper "Create 03 state - Keyboard open").
   const showConfirm = () => {
     clearTimeout(reveal.current);
+    // Android: the layout scrolls the focused field above the button.
+    if (revealFocused) {
+      reveal.current = setTimeout(revealFocused, 100);
+      return;
+    }
     reveal.current = setTimeout(
       () =>
         confirmBox.current?.measureInWindow((x, y, w, h) => {

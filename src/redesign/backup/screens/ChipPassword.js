@@ -5,7 +5,7 @@
 // and the wallet check (Face ID or the wallet password) unlocks the phrase.
 // 06 and 07 are the iOS system NFC sheet. Android has none: the screen shows its own "Hold the
 // chip" sheet with Cancel (not in Paper).
-import React, {useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Platform, StyleSheet, View} from 'react-native';
 import {useSelector} from 'react-redux';
 import ValuButton, {TextLink} from '../../components/ValuButton';
@@ -41,6 +41,15 @@ export default function ChipPassword({navigation}) {
   const [stage, setStage] = useState(null); // Android: 'hold' | 'writing'
   const first = useRef(null);
   const second = useRef(null);
+  // Back during a write: stop it, so no chip is written after the user left.
+  const left = useRef(false);
+  useEffect(
+    () => () => {
+      left.current = true;
+      cancelChipWrite();
+    },
+    [],
+  );
   const auth = useWalletAuth({body: 'Enter the password of this wallet to write its recovery phrase to the chip.'});
   useFocusOnArrival(() => first.current?.focus());
 
@@ -73,7 +82,12 @@ export default function ChipPassword({navigation}) {
         return;
       }
       try {
-        await writeChipBackup({mnemonic, password, onStage: IS_ANDROID ? setStage : undefined});
+        await writeChipBackup({
+          mnemonic,
+          password,
+          onStage: IS_ANDROID ? setStage : undefined,
+          cancelled: () => left.current,
+        });
       } catch (e) {
         const shown = chipWriteError(e);
         setStage(null);

@@ -95,8 +95,9 @@ export default function Creating({navigation}) {
         dispatch,
         testProfile: ob.testProfile,
         // As the old flows: a new mainnet wallet also gets the shielded (Z) seed (SeedWords
-        // useSeedAsZ = !testProfile); a typed import does not (CreateWallet ImportText); a chip
-        // import does when the chip holds 24 BIP39 words (ImportNfc useSeedAsZ).
+        // useSeedAsZ = !testProfile). An import does when the phrase is 24 BIP39 words, typed or
+        // from a chip (ImportNfc useSeedAsZ). Unlike the old ImportText: a typed Valu backup must
+        // give back the shielded funds too.
         includeDlightSeed: ob.path === 'create' ? !ob.testProfile : ob.seedHasZ,
         useBiometrics: ob.useBiometrics,
       });

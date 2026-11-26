@@ -19,6 +19,7 @@ import {
 // Android has no system NFC sheet: the app shows its own "Hold the chip" sheet, with Cancel.
 export const cancelChipWrite = () => cancelWalletBackupNfcRequest();
 import {withKeepAwake} from '../../utils/keepAwake/keepAwake';
+import {isNfcCancel} from '../onboarding/import/nfcImport';
 
 export async function phoneHasNfc() {
   try {
@@ -30,11 +31,11 @@ export async function phoneHasNfc() {
 
 const IOS = Platform.OS === 'ios';
 
-// The library reports failures as English messages. Map them to the redesign copy. A cancel on
-// the system sheet is not an error: nothing shows.
+// The library reports failures as English messages. Map them to the redesign copy. A cancel (the
+// system sheet, the Android sheet, or leaving the screen) is not an error: nothing shows.
 export function chipWriteError(error) {
+  if (isNfcCancel(error)) return null;
   const m = String(error?.message ?? error ?? '').toLowerCase();
-  if (m.includes('cancel')) return null;
   if (m.includes('not supported on this device')) return {noNfc: true};
   if (m.includes('disabled')) {
     return {title: 'NFC is off', body: 'Turn on NFC in the settings of your phone, then try again.', retry: true};
@@ -61,7 +62,12 @@ export function chipWriteError(error) {
 
 // Encrypts the phrase with the password and writes it to one chip. Resolves when written.
 // onStage('hold') when the phone waits for the chip, onStage('writing') while it writes.
-export async function writeChipBackup({mnemonic, password, onStage}) {
+// cancelled(): true once the user left. Then no chip request starts, and the writer's own guard
+// stops the write just before it reaches the chip.
+export async function writeChipBackup({mnemonic, password, onStage, cancelled = () => false}) {
+  const stopIfCancelled = () => {
+    if (cancelled()) throw new Error('Chip write cancelled.');
+  };
   let preRegistered = false;
   let writerStarted = false;
   try {
@@ -69,10 +75,12 @@ export async function writeChipBackup({mnemonic, password, onStage}) {
     const ordinal = await withKeepAwake(() =>
       buildWalletBackupOrdinal({mnemonic, password, kdfIters: WALLET_BACKUP_ENCRYPTION_ITERS_MEDIUM}),
     );
+    stopIfCancelled();
     writerStarted = true;
     onStage?.('hold');
     await writeWalletBackupToNfc(ordinal, {
       sessionPreRegistered: preRegistered,
+      beforeWrite: stopIfCancelled,
       onStatus: status => {
         if (!/^(Writing|Formatting)/.test(status)) return;
         onStage?.('writing');

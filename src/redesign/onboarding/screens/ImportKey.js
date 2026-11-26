@@ -51,6 +51,7 @@ export default function ImportKey({navigation}) {
       return;
     }
     ob.setSecret(result.key);
+    ob.setSeedHasZ(false);
     navigation.navigate(nextRoute('import', ROUTES.importKey));
   };
 

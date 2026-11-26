@@ -164,7 +164,8 @@ export default function HomeScreen({navigation}) {
   const fiat = formatFiat(total);
   const isZero = total != null && total.isZero();
 
-  const hasFunds = assets.some(a => a.known && !a.crypto.isZero());
+  // Any reported funds count, also when another sub-wallet of the coin has not loaded.
+  const hasFunds = assets.some(a => a.crypto.isGreaterThan(0));
   const prompt = backupPrompt(backup, hasFunds);
 
   // First funds: the sheet, one time. It is marked as shown when it opens, so a restart while it

@@ -42,7 +42,10 @@ export default function ImportNfcPassword({navigation}) {
       ob.setSeedHasZ(chipSeedHasZ(phrase));
       ob.setNfcBackup(null);
       setPassword('');
-      navigation.navigate(nextRoute('import', ROUTES.importNfcPassword));
+      // Replace: the chip is open and its record is dropped, so Back from Create password goes
+      // to Welcome with the import sheet, not to this screen with nothing to unlock.
+      ob.sheetReturn.current = true;
+      navigation.replace(nextRoute('import', ROUTES.importNfcPassword));
     } catch (e) {
       setWrong(true);
     } finally {

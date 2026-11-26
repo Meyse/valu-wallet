@@ -27,8 +27,11 @@ export async function readBackup(accountHash) {
   }
 }
 
+// A read error throws and writes nothing: a partial record would drop needsBackup and end the
+// reminder for good.
 async function update(accountHash, change) {
-  const current = (await readBackup(accountHash)) ?? {};
+  const raw = await AsyncStorage.getItem(keyFor(accountHash));
+  const current = raw ? JSON.parse(raw) : {};
   await AsyncStorage.setItem(keyFor(accountHash), JSON.stringify({...current, ...change}));
 }
 
