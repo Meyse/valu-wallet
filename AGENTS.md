@@ -17,6 +17,18 @@ Compact map for coding agents in this repository. Keep it short.
 - Start each task branch from `main`. To take new upstream work, merge `upstream/master` into `main`. Do not rebase shared branches.
 - Do not confuse this repository with `~/dev/Verus-Mobile` (Max's separate Verus Mobile redesign, where upstream means VerusCoin) or `~/dev/valu-mobile`.
 
+## Upstream pull requests
+
+Follow these steps each time Max asks for a pull request into upstream. Max agreed this format with Monkins (Valu lead developer). The first one was Valu-verse/Valu-Wallet#8.
+
+1. Merge `upstream/master` into `main` first if `main` is behind it. Then branch `release/<version>` from `main`.
+2. Version `X.Y.Z-N`: take `X.Y.Z` and `versionBuild` from `upstream/master:android/app/build.gradle` (the base follows Verus-Mobile). `N` is upstream's `versionBuild` plus one. Set `versionBuild = N`. Set iOS `MARKETING_VERSION = X.Y.Z` and `CURRENT_PROJECT_VERSION = N` in both build configurations. Leave `package.json` at `X.Y.Z`.
+3. Remove `AGENTS.md` in its own commit. Keep `docs/`.
+4. Push the branch to `https://github.com/Meyse/Verus-Mobile.git`. That repository is in the upstream fork network; `origin` is not, so GitHub cannot open a pull request from `origin`. Open the pull request with `gh api repos/Valu-verse/Valu-Wallet/pulls` (`head=Meyse:<branch>`, `head_repo=Meyse/Verus-Mobile`, `base=master`), then link it to the thread.
+5. Title: the version only, for example `1.1.1-1`. Body: at most 10 lines: what changed, what was tested, what was not tested, and the version. The pull request is the release notes; add no changelog file.
+6. Ask Monkins to merge with a merge commit, not squash or rebase, so `main` and upstream keep one history.
+7. After the merge, merge `upstream/master` into `main` and keep `AGENTS.md`. On a modify/delete conflict, run `git add AGENTS.md`. If the merge deleted it, run `git restore --source=HEAD^1 AGENTS.md` and commit.
+
 ## Stack facts
 
 - React Native 0.88.1, React 19.3.1, Hermes, New Architecture (`newArchEnabled=true`, `RCT_NEW_ARCH_ENABLED=1`, Fabric, bridgeless). Legacy native modules run through the interop layer. No Expo.
