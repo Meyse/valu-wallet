@@ -1,15 +1,14 @@
 // R03e Import private key and R03f invalid key.
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useRef, useState} from 'react';
 import {Platform, StyleSheet, TextInput, View} from 'react-native';
 // Same clipboard API as the rest of the app (SendWizardRecipient, AddressBook).
 import {Clipboard} from 'react-native';
 import ValuButton, {TextLink} from '../../components/ValuButton';
-import {DenseScreen, ErrorText, Heading, PillButton, TopBar} from '../../components/Layout';
+import {DenseScreen, ErrorText, Heading, TopBar, useFocusOnArrival} from '../../components/Layout';
 import {checkPrivateKey} from '../../logic/importValidation';
 import {ROUTES, nextRoute, progressFor} from '../../logic/steps';
 import {colors, radius, type} from '../../theme/tokens';
 import {useOnboarding} from '../OnboardingContext';
-import {useCameraGate} from './ImportPhrase';
 
 const NO_AUTOFILL = Platform.select({
   ios: {textContentType: 'none', spellCheck: false, autoCorrect: false},
@@ -22,12 +21,8 @@ export default function ImportKey({navigation}) {
   const [focused, setFocused] = useState(false);
   const [checked, setChecked] = useState(false);
   const input = useRef(null);
-  const camera = useCameraGate(navigation);
 
-  useEffect(() => {
-    const t = setTimeout(() => input.current?.focus(), 350);
-    return () => clearTimeout(t);
-  }, []);
+  useFocusOnArrival(() => input.current?.focus());
 
   const result = checkPrivateKey(key);
   // The error shows when the user leaves the field or pastes a key, not on every keystroke.
@@ -54,13 +49,11 @@ export default function ImportKey({navigation}) {
   };
 
   return (
-    <>
-      <DenseScreen
+    <DenseScreen
         topBar={
           <TopBar
             onBack={() => navigation.goBack()}
             progress={progressFor('import', ROUTES.importKey)}
-            right={<PillButton icon="scanQr" label="Scan QR" onPress={camera.open} testID="key-scan-qr" />}
           />
         }
         footer={
@@ -104,9 +97,7 @@ export default function ImportKey({navigation}) {
             <TextLink label="Paste key" onPress={paste} testID="key-paste" />
           </View>
         </View>
-      </DenseScreen>
-      {camera.element}
-    </>
+    </DenseScreen>
   );
 }
 

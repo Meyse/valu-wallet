@@ -54,6 +54,7 @@ export const type = {
   display: t(fonts.semibold, 48, 58),
   title: t(fonts.semibold, 28, 36),
   titleCard: t(fonts.semibold, 28, 34),
+  titleSmall: t(fonts.semibold, 20, 24),
   label: t(fonts.semibold, 16, 19),
   bodyLarge: t(fonts.regular, 16, 19),
   body: t(fonts.regular, 14, 18),

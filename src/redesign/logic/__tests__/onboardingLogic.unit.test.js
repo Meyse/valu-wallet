@@ -140,11 +140,12 @@ describe('step order', () => {
     expect(order).toEqual(['Welcome', 'CreatePassword', 'UseFaceId', 'Creating']);
   });
 
-  it('import: phrase first, then password and Face ID; key and QR join at the password', () => {
+  it('import: each lane (phrase, key, QR, NFC chip password) joins at the password', () => {
     expect(nextRoute('import', ROUTES.welcome)).toBe('ImportPhrase');
     expect(nextRoute('import', ROUTES.importPhrase)).toBe('CreatePassword');
     expect(nextRoute('import', ROUTES.importKey)).toBe('CreatePassword');
     expect(nextRoute('import', ROUTES.scanQr)).toBe('CreatePassword');
+    expect(nextRoute('import', ROUTES.importNfcPassword)).toBe('CreatePassword');
     expect(nextRoute('import', ROUTES.password)).toBe('UseFaceId');
     expect(nextRoute('import', ROUTES.faceId)).toBe('Creating');
   });
@@ -156,6 +157,8 @@ describe('step order', () => {
 
   it('shows the password step as 2 of 3 on import and 1 of 2 on create (Paper bar 50 %)', () => {
     expect(progressFor('import', ROUTES.password)).toEqual([2, 3]);
+    // Paper Import NFC 03b: the chip password is the first of three import steps.
+    expect(progressFor('import', ROUTES.importNfcPassword)).toEqual([1, 3]);
     expect(progressFor('create', ROUTES.password)).toEqual([1, 2]);
   });
 });

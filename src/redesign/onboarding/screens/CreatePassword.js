@@ -2,7 +2,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import ValuButton from '../../components/ValuButton';
-import {DenseScreen, ErrorText, Heading, TopBar} from '../../components/Layout';
+import {DenseScreen, ErrorText, Heading, TopBar, useFocusOnArrival} from '../../components/Layout';
 import Icon from '../../components/Icon';
 import {getPasswordGate} from '../../logic/password';
 import {ROUTES, nextRoute, progressFor} from '../../logic/steps';
@@ -91,13 +91,8 @@ export default function CreatePassword({navigation}) {
   const reveal = useRef(null);
   const gate = getPasswordGate(password, confirm);
 
-  useEffect(() => {
-    const t = setTimeout(() => first.current?.focus(), 350);
-    return () => {
-      clearTimeout(t);
-      clearTimeout(reveal.current);
-    };
-  }, []);
+  useFocusOnArrival(() => first.current?.focus());
+  useEffect(() => () => clearTimeout(reveal.current), []);
 
   // Small phones: the confirm field and its error sit at the end of the form. Show them in full
   // above the button once the keyboard has made room.

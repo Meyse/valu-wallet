@@ -64,7 +64,7 @@ function CoinTile({coin}) {
 
 const ACTIVITY_COPY = {
   created: {title: 'Wallet created', body: 'On this phone'},
-  imported: {title: 'Wallet imported', body: 'Restored on this phone'},
+  imported: {title: 'Wallet imported', body: 'On this phone'},
 };
 
 export default function HomeScreen({navigation}) {

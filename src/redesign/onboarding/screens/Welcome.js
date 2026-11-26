@@ -15,8 +15,15 @@ import {colors, type} from '../../theme/tokens';
 import ValuButton, {TextLink} from '../../components/ValuButton';
 import {FadeView, LogoTile, useBottomGap, useColumnWidth} from '../../components/Layout';
 import Sheet from '../../components/Sheet';
+import Icon from '../../components/Icon';
 import {useOnboarding} from '../OnboardingContext';
 import {ROUTES} from '../../logic/steps';
+import ImportWaySheet from '../import/ImportWaySheet';
+import {useCameraGate} from '../import/cameraGate';
+import {chipSeedHasZ, useNfcRead} from '../import/nfcImport';
+
+// A sheet must be gone before the next one (or the system NFC sheet) opens.
+const AFTER_SHEET_MS = 320;
 
 let introPlayed = false;
 
@@ -30,7 +37,38 @@ export default function Welcome({navigation}) {
   const [play] = useState(() => !introPlayed && !reduce);
   const p = useSharedValue(play ? 0 : 1);
   const [testSheet, setTestSheet] = useState(false);
+  const [waySheet, setWaySheet] = useState(false);
+  const [nfcError, setNfcError] = useState(null);
   const taps = useRef(0);
+  const later = useRef(null);
+  const camera = useCameraGate(navigation);
+  const nfc = useNfcRead({
+    onPhrase: phrase => {
+      ob.setSecret(phrase);
+      ob.setSeedHasZ(chipSeedHasZ(phrase));
+      navigation.navigate(ROUTES.password);
+    },
+    onLocked: ordinal => {
+      ob.setNfcBackup(ordinal);
+      navigation.navigate(ROUTES.importNfcPassword);
+    },
+    onError: setNfcError,
+  });
+
+  // Back from the first screen of an import lane: Welcome shows the import sheet again, once the
+  // screen has come back.
+  useEffect(() => {
+    const off = navigation.addListener('focus', () => {
+      if (!ob.sheetReturn.current) return;
+      ob.sheetReturn.current = false;
+      clearTimeout(later.current);
+      later.current = setTimeout(() => setWaySheet(true), AFTER_SHEET_MS);
+    });
+    return () => {
+      off();
+      clearTimeout(later.current);
+    };
+  }, [navigation, ob.sheetReturn]);
 
   useEffect(() => {
     introPlayed = true;
@@ -58,8 +96,20 @@ export default function Welcome({navigation}) {
 
   const start = path => {
     ob.reset();
+    ob.sheetReturn.current = false;
     ob.setPath(path);
-    navigation.navigate(path === 'import' ? ROUTES.importPhrase : ROUTES.password);
+    if (path === 'import') setWaySheet(true);
+    else navigation.navigate(ROUTES.password);
+  };
+
+  const choose = way => {
+    setWaySheet(false);
+    ob.reset();
+    ob.setPath('import');
+    ob.sheetReturn.current = true;
+    clearTimeout(later.current);
+    if (way === 'phrase') navigation.navigate(ROUTES.importPhrase);
+    else later.current = setTimeout(way === 'qr' ? camera.open : nfc.read, AFTER_SHEET_MS);
   };
 
   // Hidden testnet switch, as on the old wallet intro screen (7 taps on the logo).
@@ -95,6 +145,43 @@ export default function Welcome({navigation}) {
           <TextLink label="Recover vault" onPress={() => start('import')} testID="welcome-import" />
         </View>
       </Animated.View>
+      <ImportWaySheet visible={waySheet} onClose={() => setWaySheet(false)} onChoose={choose} />
+      {camera.element}
+      <Sheet
+        visible={nfcError != null}
+        onClose={() => setNfcError(null)}
+        icon={<Icon name="nfcCard48" />}
+        title={nfcError?.title}
+        body={nfcError?.body}
+        testID="nfc-error-sheet"
+        buttons={
+          nfcError?.unsupported
+            ? [
+                {
+                  label: 'Choose another way',
+                  variant: 'accent',
+                  testID: 'nfc-error-other',
+                  onPress: () => {
+                    setNfcError(null);
+                    later.current = setTimeout(() => setWaySheet(true), AFTER_SHEET_MS);
+                  },
+                },
+                {label: 'Close', onPress: () => setNfcError(null), testID: 'nfc-error-close'},
+              ]
+            : [
+                {
+                  label: 'Try again',
+                  variant: 'accent',
+                  testID: 'nfc-error-retry',
+                  onPress: () => {
+                    setNfcError(null);
+                    later.current = setTimeout(nfc.read, AFTER_SHEET_MS);
+                  },
+                },
+                {label: 'Cancel', onPress: () => setNfcError(null), testID: 'nfc-error-cancel'},
+              ]
+        }
+      />
       <Sheet
         visible={testSheet}
         onClose={() => setTestSheet(false)}

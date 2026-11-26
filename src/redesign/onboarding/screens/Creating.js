@@ -95,8 +95,9 @@ export default function Creating({navigation}) {
         dispatch,
         testProfile: ob.testProfile,
         // As the old flows: a new mainnet wallet also gets the shielded (Z) seed (SeedWords
-        // useSeedAsZ = !testProfile); a typed import does not (CreateWallet ImportText).
-        includeDlightSeed: ob.path === 'create' && !ob.testProfile,
+        // useSeedAsZ = !testProfile); a typed import does not (CreateWallet ImportText); a chip
+        // import does when the chip holds 24 BIP39 words (ImportNfc useSeedAsZ).
+        includeDlightSeed: ob.path === 'create' ? !ob.testProfile : ob.seedHasZ,
         useBiometrics: ob.useBiometrics,
       });
       await recordWalletMade(accountHash, ob.path === 'import' ? 'imported' : 'created');
@@ -138,6 +139,7 @@ export default function Creating({navigation}) {
 
   const backToStart = () => {
     leaving.current = true;
+    ob.sheetReturn.current = false;
     setHoldOnboarding(false);
     navigation.popToTop();
   };

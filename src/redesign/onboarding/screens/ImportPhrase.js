@@ -1,15 +1,12 @@
-// R03 Import phrase (variation C) and R03b invalid word. Word 1 is focused when it opens.
-// Side paths: "Scan QR" (R03c sheet, then R03d) and "Use a private key" (R03e).
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+// Import phrase 03 - Enter phrase, and its invalid-word state. Word 1 is focused when it opens.
+// Opened from the import sheet on Welcome. "Use a private key" opens 03b. Scan QR lives on the sheet.
+import React, {useMemo, useRef, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
-import {Camera} from 'react-native-vision-camera';
 // Same clipboard API as the rest of the app (SendWizardRecipient, AddressBook).
 import {Clipboard} from 'react-native';
 import ValuButton, {TextLink} from '../../components/ValuButton';
-import {DenseScreen, ErrorText, Heading, PillButton, TopBar} from '../../components/Layout';
+import {DenseScreen, ErrorText, Heading, TopBar, useFocusOnArrival} from '../../components/Layout';
 import {Grid, Segmented, WordSlot} from '../../components/PhraseGrid';
-import Sheet from '../../components/Sheet';
-import Icon from '../../components/Icon';
 import {checkPhrase, normalizeWord, parsePastedPhrase, placeWords} from '../../logic/importValidation';
 import {ROUTES, nextRoute, progressFor} from '../../logic/steps';
 import {useOnboarding} from '../OnboardingContext';
@@ -19,40 +16,6 @@ const SWITCH = [
   {value: 24, label: '24 words'},
 ];
 
-export function useCameraGate(navigation) {
-  const [sheet, setSheet] = useState(false);
-  const [denied, setDenied] = useState(false);
-  const open = async () => {
-    setDenied(false);
-    if (Camera.getCameraPermissionStatus() === 'granted') {
-      navigation.navigate(ROUTES.scanQr);
-    } else {
-      setSheet(true);
-    }
-  };
-  const allow = async () => {
-    setSheet(false);
-    const status = await Camera.requestCameraPermission();
-    if (status === 'granted') navigation.navigate(ROUTES.scanQr);
-    else setDenied(true);
-  };
-  const element = (
-    <Sheet
-      visible={sheet}
-      onClose={() => setSheet(false)}
-      icon={<Icon name="camera" />}
-      title="Allow camera access"
-      body="Valu Wallet uses the camera only to read the QR code of your phrase or key."
-      testID="camera-sheet"
-      buttons={[
-        {label: 'Allow camera', variant: 'accent', onPress: allow, testID: 'camera-allow'},
-        {label: 'Not now', onPress: () => setSheet(false), testID: 'camera-not-now'},
-      ]}
-    />
-  );
-  return {open, element, denied};
-}
-
 export default function ImportPhrase({navigation}) {
   const ob = useOnboarding();
   const [count, setCount] = useState(12);
@@ -60,12 +23,8 @@ export default function ImportPhrase({navigation}) {
   const [focus, setFocus] = useState(0);
   const [pasteError, setPasteError] = useState(null);
   const refs = useRef([]);
-  const camera = useCameraGate(navigation);
 
-  useEffect(() => {
-    const t = setTimeout(() => refs.current[0]?.focus(), 350);
-    return () => clearTimeout(t);
-  }, []);
+  useFocusOnArrival(() => refs.current[0]?.focus());
 
   const result = useMemo(() => checkPhrase(words), [words]);
   // A slot shows its error once the user has left it.
@@ -142,13 +101,11 @@ export default function ImportPhrase({navigation}) {
   };
 
   return (
-    <>
-      <DenseScreen
+    <DenseScreen
         topBar={
           <TopBar
             onBack={() => navigation.goBack()}
             progress={progressFor('import', ROUTES.importPhrase)}
-            right={<PillButton icon="scanQr" label="Scan QR" onPress={camera.open} testID="import-scan-qr" />}
           />
         }
         footer={
@@ -180,10 +137,10 @@ export default function ImportPhrase({navigation}) {
                 />
               ))}
             </Grid>
-            <ErrorText>{camera.denied ? 'Camera access is off. Turn it on in Settings to scan a QR code.' : error}</ErrorText>
+            <ErrorText>{error}</ErrorText>
           </View>
           <View style={styles.links}>
-            <TextLink label="Paste phrase" onPress={paste} testID="import-paste" />
+            <TextLink label="Paste" onPress={paste} testID="import-paste" />
             <TextLink
               label="Use a private key"
               onPress={() => navigation.navigate(ROUTES.importKey)}
@@ -191,13 +148,11 @@ export default function ImportPhrase({navigation}) {
             />
           </View>
         </View>
-      </DenseScreen>
-      {camera.element}
-    </>
+    </DenseScreen>
   );
 }
 
 const styles = StyleSheet.create({
   content: {gap: 24},
-  links: {flexDirection: 'row', justifyContent: 'center', gap: 24, height: 44},
+  links: {flexDirection: 'row', justifyContent: 'center', gap: 32, height: 44},
 });

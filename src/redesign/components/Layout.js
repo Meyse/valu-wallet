@@ -1,9 +1,10 @@
 // Shared layout parts of the redesigned onboarding (Paper p-2-0; Android Brand p-3-0).
-import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
+import React, {createContext, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {NavigationContext} from '@react-navigation/native';
 import {CardAnimationContext} from '@react-navigation/stack';
 import {
   Animated,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +15,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import Reanimated, {useAnimatedKeyboard, useAnimatedStyle} from 'react-native-reanimated';
 import {colors, radius, type} from '../theme/tokens';
 import GlassSurface from './GlassSurface';
 import Icon from './Icon';
@@ -45,6 +47,8 @@ export const useBottomGap = () => {
 
 // Onboarding screens cross-fade. The fade is on the content, not on the card: once a card has been
 // faded, Liquid Glass on it no longer renders (seen on iOS 26.5). The onboarding navigator turns it on.
+// The old content is gone in the first 40 % of the move; the new content comes in after 30 %, so
+// the two are never readable at the same time.
 export const ContentFadeContext = createContext(false);
 
 export function FadeView({style, children, pointerEvents}) {
@@ -54,11 +58,11 @@ export function FadeView({style, children, pointerEvents}) {
   const next = card?.next?.progress;
   const opacity = useMemo(() => {
     if (!enabled || !current) return null;
-    const incoming = current.interpolate({inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp'});
+    const incoming = current.interpolate({inputRange: [0.3, 1], outputRange: [0, 1], extrapolate: 'clamp'});
     if (!next) return incoming;
     return Animated.multiply(
       incoming,
-      next.interpolate({inputRange: [0, 1], outputRange: [1, 0], extrapolate: 'clamp'}),
+      next.interpolate({inputRange: [0, 0.4], outputRange: [1, 0], extrapolate: 'clamp'}),
     );
   }, [enabled, current, next]);
   if (!opacity) {
@@ -128,6 +132,26 @@ function useAtRest(navigation) {
   return rest;
 }
 
+// Opens the keyboard once the screen has arrived. Focus during the move loads the keyboard while
+// the card and the glow animate, and on iOS that blocks the UI thread (measured: 0.4 to 1.1 s on
+// the simulator), so the move stops and then jumps.
+export function useFocusOnArrival(focus) {
+  const navigation = useContext(NavigationContext);
+  const latest = useRef(focus);
+  latest.current = focus;
+  useEffect(() => {
+    if (!navigation) return undefined;
+    let alive = true;
+    const off = navigation.addListener('transitionEnd', e => {
+      if (!e.data?.closing) requestAnimationFrame(() => alive && latest.current());
+    });
+    return () => {
+      alive = false;
+      off();
+    };
+  }, [navigation]);
+}
+
 export function BackButton({onPress, icon = 'back', label = 'Back', testID = 'redesign-back', ownGlass = false}) {
   const navigation = useContext(NavigationContext);
   const shared = useContext(SharedBackGlassContext) && !ownGlass;
@@ -137,6 +161,11 @@ export function BackButton({onPress, icon = 'back', label = 'Back', testID = 're
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={() => {
+        // The keyboard goes while the finger is down: closing it costs the UI thread a few
+        // frames, and during the move that shows as a stop.
+        Keyboard.dismiss();
+      }}
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={4}
@@ -199,7 +228,58 @@ export function TopBar({onBack, progress, right, backIcon, backLabel}) {
 }
 
 // Dense step (R03, R03e, R04 to R13): top bar, scrolling content column, bottom button.
-export function DenseScreen({topBar, children, footer, scrollRef}) {
+// iOS: the button rides on the keyboard by a transform, frame by frame on the UI thread.
+// KeyboardAvoidingView does not animate its padding on the New Architecture: the button was covered
+// by the rising keyboard and then jumped above it. A height animated per frame was uneven (layout
+// each frame). The scroll area ends above the keyboard once it starts to rise (one layout change).
+function useKeyboardHeight() {
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    const subs = [
+      Keyboard.addListener('keyboardWillShow', e => setHeight(e.endCoordinates.height)),
+      Keyboard.addListener('keyboardWillHide', () => setHeight(0)),
+    ];
+    return () => subs.forEach(sub => sub.remove());
+  }, []);
+  return height;
+}
+
+function DenseScreenIos({topBar, children, footer, scrollRef}) {
+  const top = useTopBarTop();
+  const column = useColumnWidth();
+  const bottomGap = useBottomGap();
+  const keyboard = useAnimatedKeyboard();
+  const keyboardHeight = useKeyboardHeight();
+  const ride = useAnimatedStyle(() => ({transform: [{translateY: -keyboard.height.value}]}));
+  return (
+    <View style={styles.flex}>
+      <FadeView style={styles.flex}>
+        <ScrollView
+          ref={scrollRef}
+          style={[styles.flex, {marginTop: top + BACK_SIZE + 8, marginBottom: keyboardHeight}]}
+          contentContainerStyle={{paddingTop: 32, paddingBottom: 24, alignItems: 'center'}}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}>
+          <View style={{width: column}}>{children}</View>
+        </ScrollView>
+        {footer ? (
+          <Reanimated.View style={[styles.footer, {paddingBottom: bottomGap}, ride]}>
+            <View style={{width: column}}>{footer}</View>
+          </Reanimated.View>
+        ) : null}
+      </FadeView>
+      {topBar}
+    </View>
+  );
+}
+
+export function DenseScreen(props) {
+  if (!IS_ANDROID) return <DenseScreenIos {...props} />;
+  return <DenseScreenAndroid {...props} />;
+}
+
+function DenseScreenAndroid({topBar, children, footer, scrollRef}) {
   const top = useTopBarTop();
   const column = useColumnWidth();
   const bottomGap = useBottomGap();

@@ -11,7 +11,13 @@ export function OnboardingProvider({children, background}) {
   const [useBiometrics, setUseBiometrics] = useState(false);
   const [testProfile, setTestProfile] = useState(false);
   const [biometry, setBiometry] = useState(null); // result of getSupportedBiometryType()
+  // NFC import: the encrypted chip record until its password opens it, and whether the phrase
+  // from the chip also gives the shielded (Z) seed (as the old NFC import).
+  const [nfcBackup, setNfcBackup] = useState(null);
+  const [seedHasZ, setSeedHasZ] = useState(false);
   const creationStarted = useRef(false);
+  // Set when a lane goes back to Welcome: Welcome opens the import sheet again.
+  const sheetReturn = useRef(false);
 
   const value = useMemo(
     () => ({
@@ -27,16 +33,23 @@ export function OnboardingProvider({children, background}) {
       setTestProfile,
       biometry,
       setBiometry,
+      nfcBackup,
+      setNfcBackup,
+      seedHasZ,
+      setSeedHasZ,
       creationStarted,
+      sheetReturn,
       background,
       reset: () => {
         setSecret(null);
         setPassword('');
         setUseBiometrics(false);
+        setNfcBackup(null);
+        setSeedHasZ(false);
         creationStarted.current = false;
       },
     }),
-    [path, secret, password, useBiometrics, testProfile, biometry, background],
+    [path, secret, password, useBiometrics, testProfile, biometry, nfcBackup, seedHasZ, background],
   );
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;

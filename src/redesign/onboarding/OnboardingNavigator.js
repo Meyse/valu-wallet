@@ -1,12 +1,12 @@
 // Redesigned onboarding (Paper p-2-0: create 01-08, import 01-04). The shared background is mounted once here, behind the
 // stack, so its clock never resets on navigation. Screens have transparent cards.
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {StatusBar, StyleSheet, View} from 'react-native';
+import {Platform, StatusBar, StyleSheet, TextInput, View} from 'react-native';
 import {createStackNavigator} from '@react-navigation/stack';
 import {ThemeProvider, useTheme} from '@react-navigation/native';
 import {colors} from '../theme/tokens';
 import OnboardingBackground, {useBackgroundControls} from '../components/OnboardingBackground';
-import {SCENES} from '../components/gradientMorph';
+import {SCENES, W_BOX} from '../components/gradientMorph';
 import {BackdropSourceContext} from '../components/Sheet';
 import {ContentFadeContext, SharedBackGlass, SharedBackGlassContext} from '../components/Layout';
 import {ROUTES} from '../logic/steps';
@@ -17,6 +17,7 @@ import {useHoldOnboarding} from '../state/redesignState';
 import Welcome from './screens/Welcome';
 import ImportPhrase from './screens/ImportPhrase';
 import ImportKey from './screens/ImportKey';
+import ImportNfcPassword from './screens/ImportNfcPassword';
 import ScanQr from './screens/ScanQr';
 import CreatePassword from './screens/CreatePassword';
 import UseFaceId from './screens/UseFaceId';
@@ -29,6 +30,7 @@ export const SCENE_FOR = {
   [ROUTES.welcome]: SCENES.hero,
   [ROUTES.importPhrase]: SCENES.dense,
   [ROUTES.importKey]: SCENES.dense,
+  [ROUTES.importNfcPassword]: SCENES.dense,
   [ROUTES.password]: SCENES.dense,
   [ROUTES.faceId]: SCENES.icon,
   [ROUTES.creating]: SCENES.hero,
@@ -37,6 +39,20 @@ export const SCENE_FOR = {
 // Cards are transparent over the shared background, so screens cross-fade with a short
 // slide instead of sliding over each other. The fade is on the screen content (FadeView in
 // Layout.js), not on the card: a faded card stops Liquid Glass on it.
+// The card moves on the glow box spring (critically damped, W_BOX rad/s), so the content and the
+// glow travel over the same time with the same curve. The stack animates in screen points.
+const CARD_SPRING = {
+  animation: 'spring',
+  config: {
+    stiffness: W_BOX * W_BOX,
+    damping: 2 * W_BOX,
+    mass: 1,
+    overshootClamping: true,
+    restDisplacementThreshold: 8,
+    restSpeedThreshold: 40,
+  },
+};
+
 const fadeSlide = ({current, next, layouts}) => ({
   cardStyle: {
     transform: [
@@ -64,15 +80,42 @@ function BiometryProbe() {
   return null;
 }
 
+// The first text field of the app costs the UI thread about 140 ms to create (measured on the iOS
+// simulator, Release). Without this, that cost lands in the first frames of the move to Create
+// password. One hidden, inert secure field on the start screen pays it before the user taps.
+function TextFieldWarmup() {
+  if (Platform.OS !== 'ios') return null;
+  return (
+    <View style={styles.warmup} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <TextInput editable={false} secureTextEntry textContentType="oneTimeCode" style={styles.warmup} />
+    </View>
+  );
+}
+
 // Steps without the back button: the shared glass circle hides there.
 const NO_BACK = [ROUTES.welcome, ROUTES.creating, ROUTES.scanQr];
 
 function Screens({background, onRoute}) {
-  const onFocus = name => {
-    onRoute(name);
+  // The glow starts with the card. "focus" comes before the card starts to move (the new screen
+  // mounts first), so it only names the scene; "transitionStart" applies it. Screens that open
+  // without a transition (the first screen, the end of a swipe back) apply it from the fallback.
+  const pending = useRef(null);
+  const fallback = useRef(null);
+  const applyScene = () => {
+    clearTimeout(fallback.current);
+    const name = pending.current;
+    if (!name) return;
+    pending.current = null;
     // No glow on the camera screen (DESIGN.md): it fades where it is.
     if (name === ROUTES.scanQr) background.setScene({strength: 0});
     else background.setScene(SCENE_FOR[name] ?? SCENES.hero);
+  };
+  useEffect(() => () => clearTimeout(fallback.current), []);
+  const onFocus = name => {
+    onRoute(name);
+    pending.current = name;
+    clearTimeout(fallback.current);
+    fallback.current = setTimeout(applyScene, 150);
     if (name !== ROUTES.welcome) background.fadeTo(1, 600);
   };
   return (
@@ -82,12 +125,17 @@ function Screens({background, onRoute}) {
         headerShown: false,
         cardStyle: {backgroundColor: 'transparent'},
         cardStyleInterpolator: fadeSlide,
+        transitionSpec: {open: CARD_SPRING, close: CARD_SPRING},
         gestureEnabled: true,
       }}
-      screenListeners={({route}) => ({focus: () => onFocus(route.name)})}>
+      screenListeners={({route}) => ({
+        focus: () => onFocus(route.name),
+        transitionStart: applyScene,
+      })}>
       <Stack.Screen name={ROUTES.welcome} component={Welcome} />
       <Stack.Screen name={ROUTES.importPhrase} component={ImportPhrase} />
       <Stack.Screen name={ROUTES.importKey} component={ImportKey} />
+      <Stack.Screen name={ROUTES.importNfcPassword} component={ImportNfcPassword} />
       <Stack.Screen name={ROUTES.scanQr} component={ScanQr} />
       <Stack.Screen name={ROUTES.password} component={CreatePassword} />
       <Stack.Screen name={ROUTES.faceId} component={UseFaceId} />
@@ -115,6 +163,7 @@ export default function OnboardingNavigator({navigation}) {
     <BackdropSourceContext.Provider value={root}>
       <OnboardingProvider background={background}>
         <BiometryProbe />
+        <TextFieldWarmup />
         <StatusBar barStyle="light-content" />
         <View ref={root} collapsable={false} style={styles.root}>
           <OnboardingBackground scene={background.scene} opacity={background.opacity} />
@@ -134,4 +183,5 @@ export default function OnboardingNavigator({navigation}) {
 
 const styles = StyleSheet.create({
   root: {flex: 1, backgroundColor: colors.surface},
+  warmup: {position: 'absolute', width: 1, height: 1, opacity: 0, left: -10, top: -10},
 });

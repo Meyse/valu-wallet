@@ -25,7 +25,8 @@ const yMax = Math.max(...ys);
 export const FIELD_RANK = ys.map(y => (y - yMin) / (yMax - yMin));
 
 // Spring stiffness (rad/s). Critically damped: no overshoot, about 0.6 to 0.9 s to settle.
-const W_BOX = 7.5;
+// The glow box uses the same spring as the screen content (CARD_SPRING), so both arrive together.
+export const W_BOX = 8;
 const W_FIELD_MIN = 6;
 const W_FIELD_MAX = 10;
 const W_HEX = 5.5;

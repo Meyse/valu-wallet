@@ -4,7 +4,17 @@
 import React, {createContext, useContext, useEffect, useState} from 'react';
 import {Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import Animated, {FadeIn, FadeOut, SlideInDown, SlideOutDown} from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  SlideInDown,
+  SlideOutDown,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
+import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {Blur, Canvas, Image as SkImage, makeImageFromView} from '@shopify/react-native-skia';
 import {colors, radius, type} from '../theme/tokens';
@@ -47,16 +57,20 @@ function BlurredBackdrop({image}) {
   );
 }
 
-// icon: element (48 x 48 outline icon). buttons: [{label, onPress, variant}] (max 2).
-export default function Sheet({visible, onClose, icon, title, body, children, buttons = [], testID}) {
+// The sheet chrome: blurred backdrop (tap closes), the card with its gradient border, the slide.
+// grabber: a handle on top, and a swipe down closes the sheet (Paper Import 02 - Choose a way).
+// cardStyle: padding and gap of the card content.
+export function SheetFrame({visible, onClose, grabber = false, cardStyle, children, testID}) {
   const source = useContext(BackdropSourceContext);
   const insets = useSafeAreaInsets();
   const {width: screenW} = useWindowDimensions();
   const [image, setImage] = useState(null);
   const [cardSize, setCardSize] = useState({width: 0, height: 0});
+  const drag = useSharedValue(0);
 
   useEffect(() => {
     let alive = true;
+    if (visible) drag.value = 0;
     if (visible && source?.current) {
       makeImageFromView(source)
         .then(img => alive && setImage(img))
@@ -66,7 +80,22 @@ export default function Sheet({visible, onClose, icon, title, body, children, bu
     return () => {
       alive = false;
     };
-  }, [visible, source]);
+  }, [visible, source, drag]);
+
+  const close = () => onClose && onClose();
+  // Down follows the finger; up resists. Far enough or fast enough closes, else it springs back.
+  const pan = Gesture.Pan()
+    .enabled(grabber)
+    .activeOffsetY([-10, 10])
+    .failOffsetX([-24, 24])
+    .onUpdate(e => {
+      drag.value = e.translationY > 0 ? e.translationY : e.translationY / 6;
+    })
+    .onEnd(e => {
+      if (e.translationY > 80 || e.velocityY > 800) runOnJS(close)();
+      else drag.value = withSpring(0, {damping: 20, stiffness: 260});
+    });
+  const dragStyle = useAnimatedStyle(() => ({transform: [{translateY: drag.value}]}));
 
   const width = Math.min(CARD_WIDTH, screenW - 32);
   const bottom = Math.max(24, insets.bottom + 8);
@@ -80,7 +109,7 @@ export default function Sheet({visible, onClose, icon, title, body, children, bu
       navigationBarTranslucent
       onRequestClose={onClose}>
       {visible ? (
-        <View style={StyleSheet.absoluteFill} testID={testID}>
+        <GestureHandlerRootView style={StyleSheet.absoluteFill} testID={testID}>
           <Animated.View entering={FadeIn.duration(220)} exiting={FadeOut.duration(180)} style={StyleSheet.absoluteFill}>
             <BlurredBackdrop image={image} />
             <Pressable
@@ -96,37 +125,56 @@ export default function Sheet({visible, onClose, icon, title, body, children, bu
             style={[styles.cardWrap, {width, bottom}]}
             accessibilityViewIsModal
             onLayout={e => setCardSize(e.nativeEvent.layout)}>
-            <GradientBorder width={cardSize.width} height={cardSize.height} />
-            <View style={styles.card}>
-              <View style={styles.top}>
-                {icon ? <View style={styles.icon}>{icon}</View> : null}
-                <View style={styles.texts}>
-                  <Text style={[type.titleCard, styles.title]} accessibilityRole="header">
-                    {title}
-                  </Text>
-                  {body ? <Text style={[type.body, styles.body]}>{body}</Text> : null}
+            <GestureDetector gesture={pan}>
+              <Animated.View style={dragStyle}>
+                <GradientBorder width={cardSize.width} height={cardSize.height} />
+                <View style={[styles.card, cardStyle]}>
+                  {grabber ? (
+                    <View style={styles.grabberRow}>
+                      <View style={styles.grabber} />
+                    </View>
+                  ) : null}
+                  {children}
                 </View>
-                {children}
-              </View>
-              {buttons.length > 0 ? (
-                <View style={styles.buttons}>
-                  {buttons.map(b => (
-                    <ValuButton
-                      key={b.label}
-                      label={b.label}
-                      onPress={b.onPress}
-                      variant={b.variant ?? 'secondary'}
-                      testID={b.testID}
-                      loading={b.loading}
-                    />
-                  ))}
-                </View>
-              ) : null}
-            </View>
+              </Animated.View>
+            </GestureDetector>
           </Animated.View>
-        </View>
+        </GestureHandlerRootView>
       ) : null}
     </Modal>
+  );
+}
+
+// One question: icon (48 x 48 outline), title, body, then up to two buttons [{label, onPress, variant}].
+export default function Sheet({visible, onClose, icon, title, body, children, buttons = [], testID}) {
+  return (
+    <SheetFrame visible={visible} onClose={onClose} testID={testID} cardStyle={styles.question}>
+      <View style={styles.top}>
+        {icon ? <View style={styles.icon}>{icon}</View> : null}
+        <View style={styles.texts}>
+          <Text style={[type.titleCard, styles.title]} accessibilityRole="header">
+            {title}
+          </Text>
+          {body ? <Text style={[type.body, styles.body]}>{body}</Text> : null}
+        </View>
+        {children}
+      </View>
+      {buttons.length > 0 ? (
+        <View style={styles.buttons}>
+          {buttons.map(b => (
+            <ValuButton
+              key={b.label}
+              label={b.label}
+              onPress={b.onPress}
+              variant={b.variant ?? 'secondary'}
+              testID={b.testID}
+              loading={b.loading}
+              disabled={b.disabled}
+            />
+          ))}
+        </View>
+      ) : null}
+    </SheetFrame>
   );
 }
 
@@ -140,9 +188,11 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg - 1,
-    padding: 24,
-    gap: 48,
   },
+  question: {padding: 24, gap: 48},
+  // Paper: an 11 high row with a 36 x 5 handle at its top.
+  grabberRow: {height: 11, alignItems: 'center'},
+  grabber: {width: 36, height: 5, borderRadius: 3, backgroundColor: '#FFFFFF52'},
   top: {gap: 16},
   icon: {width: 48, height: 48, alignItems: 'center', justifyContent: 'center'},
   texts: {gap: 16},
