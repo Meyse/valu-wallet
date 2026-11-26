@@ -1,14 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Splash background shows the app icon centered over the dark splash colour -->
+<!-- Splash background: the Valu logo centred over the dark splash colour (as the Android 12+ splash) -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item
         android:drawable="@color/splash_background"/>
 
     <item
-        android:width="200dp"
-        android:height="200dp"
-        android:drawable="@mipmap/ic_launcher"
+        android:drawable="@drawable/splash_icon"
         android:gravity="center" />
 
 </layer-list>
