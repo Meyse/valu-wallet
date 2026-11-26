@@ -1,0 +1,21 @@
+{
+  "argon2id": [
+    {"name": "RFC9106 5.3 argon2id (p=4, secret, ad)", "m": 32, "t": 3, "p": 4, "tagLength": 32,
+     "password_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+     "salt_hex": "02020202020202020202020202020202", "secret_hex": "0303030303030303",
+     "ad_hex": "040404040404040404040404",
+     "expected_hex": "0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659"},
+    {"name": "phc test.c argon2id t=2 m=2^16 p=1", "m": 65536, "t": 2, "p": 1, "tagLength": 32,
+     "password_hex": "70617373776f7264", "salt_hex": "736f6d6573616c74",
+     "expected_hex": "09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7"},
+    {"name": "phc test.c argon2id t=4 m=2^16 p=1", "m": 65536, "t": 4, "p": 1, "tagLength": 32,
+     "password_hex": "70617373776f7264", "salt_hex": "736f6d6573616c74",
+     "expected_hex": "9025d48e68ef7395cca9079da4c4ec3affb3c8911fe4f86d1a2520856f63172c"}
+  ],
+  "pbkdf2": [
+    {"name": "RFC7914 11 passwd/salt c=1", "password": "passwd", "salt": "salt", "c": 1, "dkLen": 64,
+     "expected_hex": "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783"},
+    {"name": "RFC7914 11 Password/NaCl c=80000", "password": "Password", "salt": "NaCl", "c": 80000, "dkLen": 64,
+     "expected_hex": "4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56a1d425a1225833549adb841b51c9b3176a272bdebba1d078478f62b397f33c8d"}
+  ]
+}

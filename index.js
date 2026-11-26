@@ -19,7 +19,7 @@ LogBox.ignoreLogs(IGNORED_LOGS);
 import 'fast-text-encoding';
 import './shims/crypto.js';
 import './shims/buffer.js';
-import App from './App';
+import App from './VaultBench';
 import {name as appName} from './app.json';
 
 AppRegistry.registerComponent(appName, () => App);
