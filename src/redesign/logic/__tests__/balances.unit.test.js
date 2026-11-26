@@ -49,6 +49,17 @@ describe('summarizeBalances', () => {
     expect(assets.find(a => a.coin.id === 'ETH').known).toBe(false);
   });
 
+  it('gives no total for a coin with no sub-wallet to read, so a failed init never shows 0.00', () => {
+    const {assets, total} = summarizeBalances({
+      coins: [VRSC, ETH],
+      subWallets: {VRSC: [{id: 'main'}]},
+      balances: {VRSC: {main: {total: '0'}}},
+      rate: () => 2,
+    });
+    expect(total).toBeNull();
+    expect(assets.find(a => a.coin.id === 'ETH').known).toBe(false);
+  });
+
   it('gives no total when a funded coin has no rate', () => {
     const {total} = summarizeBalances({
       coins: [VRSC],

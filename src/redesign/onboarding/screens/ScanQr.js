@@ -31,7 +31,10 @@ export default function ScanQr({navigation}) {
   const handled = useRef(false);
   // Back from the password step returns here: scan again.
   useEffect(() => {
-    if (focused) handled.current = false;
+    if (focused) {
+      handled.current = false;
+      setError(null);
+    }
   }, [focused]);
 
   const scanner = useCodeScanner({

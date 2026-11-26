@@ -13,7 +13,6 @@ import {conditionallyUpdateWallets} from '../../actions/actionDispatchers';
 import {API_GET_BALANCES, API_GET_FIATPRICE, API_GET_INFO} from '../../utils/constants/intervalConstants';
 import {USD} from '../../utils/constants/currencies';
 import {extractLedgerData} from '../../utils/ledger/extractLedgerData';
-import {extractDisplaySubWallets} from '../../utils/subwallet/extractSubWallets';
 import GlassSurface from '../components/GlassSurface';
 import Icon from '../components/Icon';
 import ValuButton from '../components/ValuButton';
@@ -79,7 +78,9 @@ export default function HomeScreen({navigation}) {
   const accountHash = useSelector(state => state.authentication.activeAccount?.accountHash);
   const coins = useObjectSelector(state => state.coins.activeCoinsForUser);
   const balances = useObjectSelector(state => extractLedgerData(state, 'balances', API_GET_BALANCES));
-  const subWallets = useObjectSelector(state => extractDisplaySubWallets(state));
+  // All sub-wallets, not only the ones that started: a sub-wallet that failed has no balance, and
+  // Home then shows "—" for its coin instead of a sum that leaves it out.
+  const subWallets = useObjectSelector(state => state.coinMenus.allSubWallets);
   const rates = useObjectSelector(state => state.ledger.rates);
   const currency = useSelector(state => state.settings.generalWalletSettings.displayCurrency || USD);
   const showBalance = useSelector(state => state.coins.showBalance);

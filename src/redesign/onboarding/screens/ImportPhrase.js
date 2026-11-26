@@ -97,8 +97,9 @@ export default function ImportPhrase({navigation}) {
 
   const onChange = (i, text) => {
     setPasteError(null);
+    // A full phrase in one slot (any whitespace: spaces, tabs, line breaks) replaces the grid.
     const pasted = parsePastedPhrase(text);
-    if (pasted && text.trim().includes(' ')) {
+    if (pasted) {
       fill(pasted);
       return;
     }
@@ -129,8 +130,11 @@ export default function ImportPhrase({navigation}) {
     else setPasteError('The copied text is not a recovery phrase of 12 to 24 words.');
   };
 
+  // A refused paste leaves the earlier words in the grid: they must not go on as the phrase.
+  const canContinue = result.status === 'valid' && !pasteError;
+
   const next = () => {
-    if (result.status !== 'valid') return;
+    if (!canContinue) return;
     ob.setSecret(result.phrase);
     navigation.navigate(nextRoute('import', ROUTES.importPhrase));
   };
@@ -149,7 +153,7 @@ export default function ImportPhrase({navigation}) {
           <ValuButton
             label="Continue"
             onPress={next}
-            disabled={result.status !== 'valid'}
+            disabled={!canContinue}
             testID="import-continue"
           />
         }>

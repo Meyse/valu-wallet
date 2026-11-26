@@ -12,6 +12,7 @@ import {DENSE_ROUTES, ROUTES} from '../logic/steps';
 import {getSupportedBiometryType} from '../../utils/keychain/keychain';
 import {OnboardingProvider, useOnboarding} from './OnboardingContext';
 import {useDeeplinkForward} from '../state/useDeeplinkForward';
+import {useHoldOnboarding} from '../state/redesignState';
 import Welcome from './screens/Welcome';
 import ImportPhrase from './screens/ImportPhrase';
 import ImportKey from './screens/ImportKey';
@@ -103,7 +104,10 @@ export default function OnboardingNavigator({navigation}) {
   );
   const background = useBackgroundControls();
   const [route, setRoute] = useState(ROUTES.welcome);
-  useDeeplinkForward(navigation);
+  // While "Wallet ready" holds onboarding open, the account is signed in but the root stack has no
+  // signed-in route yet: a deep link would not get back. It stays in the store, and Home opens it.
+  const hold = useHoldOnboarding();
+  useDeeplinkForward(hold ? null : navigation);
 
   return (
     <BackdropSourceContext.Provider value={root}>
