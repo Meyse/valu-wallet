@@ -20,6 +20,10 @@ import store from "../../../../store";
 import { getAddressBlocklistFromServer } from "../../../../utils/api/channels/general/addressBlocklist/getAddressBlocklist";
 import {loadServiceStoredDataForUser} from '../../../../utils/asyncStore/serviceStoredDataStorage';
 import {initSession} from '../../../../utils/auth/authBox';
+import {
+  clearSessionVaultKey,
+  setSessionVaultKey,
+} from '../../../../utils/vault/vaultSession';
 import {removeSessionCredential} from '../../../../utils/keychain/keychain';
 import {
   captureSessionScope,
@@ -394,7 +398,20 @@ export const initializeAccountData = async (
       assertInitializationActive,
     );
     assertInitializationActive();
-    store.dispatch({...accountAuthenticator, sessionKey});
+    // The vault key goes to the in-memory session cache, bound to this
+    // session key. It is never part of a Redux action.
+    const {vaultKey, ...authenticateAction} = accountAuthenticator;
+    if (vaultKey != null) {
+      setSessionVaultKey(
+        authenticateAction.activeAccount.accountHash,
+        sessionKey,
+        vaultKey,
+      );
+      vaultKey.fill(0);
+    } else {
+      clearSessionVaultKey();
+    }
+    store.dispatch({...authenticateAction, sessionKey});
     const sessionScope = captureSessionScope(
       store.getState(),
       account.accountHash,

@@ -8,6 +8,8 @@ jest.mock('../../../store', () => ({
 jest.mock('../../seedCrypt', () => ({
   decryptkey: (_password, value) => value,
   encryptkey: jest.fn(),
+  vaultDecrypt: (_vaultKey, value) => value,
+  vaultEncrypt: jest.fn(),
 }));
 jest.mock('../../keychain/keychain', () => ({
   getSessionCredential: async () => 'password',

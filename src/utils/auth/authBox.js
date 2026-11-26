@@ -7,7 +7,9 @@ import { CHANNELS, ELECTRUM, VALU_SERVICE } from "../constants/intervalConstants
 import { randomBytes } from "../crypto/randomBytes";
 import { getSessionCredential, setSessionCredential } from "../keychain/keychain";
 import { arrayToObject } from "../objectManip";
-import { decryptkey, encryptkey } from "../seedCrypt";
+import { decryptkey, encryptkey, vaultDecrypt } from "../seedCrypt";
+import { getSessionVaultKey, setSessionVaultKey } from "../vault/vaultSession";
+import { isV2Record, unwrapVaultKey } from "../crypto/envelope";
 
 const getRequestSessionScope = requestContext =>
   requestContext?.sessionScope ||
@@ -57,6 +59,57 @@ const requestPasswordForState = async (
   throw new Error("Unable to decrypt sensitive info");
 };
 
+// Returns { password, dek } for the active account. A v2 account always gets
+// its DEK: from the session cache, or (if the cache was lost) by unwrapping
+// the stored vault again. A legacy account gets dek = null. Callers pass the
+// result to vaultEncrypt / vaultDecrypt.
+const requestVaultKeyForState = async (
+  state,
+  sessionScope = null,
+  sessionError = 'Account changed while the vault key was being requested.',
+) => {
+  const password = await requestPasswordForState(state, sessionScope, sessionError);
+  const {activeAccount, sessionKey} = state.authentication;
+
+  if (activeAccount.vaultVersion == null) return {password, dek: null};
+
+  const cached = getSessionVaultKey(activeAccount.accountHash, sessionKey);
+  if (cached != null) return {password, dek: cached};
+
+  // Lazy require: authDataStorage imports this module.
+  const {getUsers} = require('../asyncStore/authDataStorage');
+  const user = (await getUsers()).find(
+    candidate => candidate.accountHash === activeAccount.accountHash,
+  );
+  if (user == null || user.vault == null) {
+    throw new Error("Unable to load the wallet vault");
+  }
+  const dek = await unwrapVaultKey(password, user.accountHash, user.vault);
+  assertRequestSessionCurrent(sessionScope, sessionError);
+  const current = store.getState().authentication;
+  if (
+    current.activeAccount?.accountHash === activeAccount.accountHash &&
+    current.sessionKey === sessionKey
+  ) {
+    setSessionVaultKey(activeAccount.accountHash, sessionKey, dek);
+  }
+  return {password, dek};
+};
+
+// `password` is an explicit (old) password for a legacy record. As before
+// vault v2, it reads that record without the session. A v2 record always
+// needs the session vault key.
+const recordVaultKeyForState = async (state, record, password) =>
+  password && !isV2Record(record)
+    ? {password, dek: null}
+    : requestVaultKeyForState(state);
+
+export const requestVaultKey = async (requestContext = null) =>
+  requestVaultKeyForState(
+    store.getState(),
+    getRequestSessionScope(requestContext),
+  );
+
 // Saves the session password to the keychain and returns the 
 // session key
 export const initSession = async (password) => {
@@ -86,12 +139,12 @@ export const requestSeeds = async () => {
   ) {
     throw new Error("You must be signed in to retrieve seeds");
   } else {
-    const password = await requestPassword()
+    const vaultKey = await requestVaultKeyForState(state)
     let seeds = arrayToObject(
       CHANNELS,
       (acc, key) => {
         if (state.authentication.activeAccount.seeds[key]) {
-          const seed = decryptkey(password, state.authentication.activeAccount.seeds[key]);
+          const seed = vaultDecrypt(vaultKey, state.authentication.activeAccount.seeds[key]);
 
           if (!seed) {
             throw new Error("Unable to decrypt seed");
@@ -143,14 +196,14 @@ export const requestPrivKey = async (
       const encryptedPrivKey =
         state.authentication.activeAccount.keys[chainTicker][channel]
           .encryptedPrivKey;
-      const password = await requestPasswordForState(
+      const vaultKey = await requestVaultKeyForState(
         state,
         sessionScope,
         sessionError,
       )
 
       assertRequestSessionCurrent(sessionScope, sessionError);
-      const key = decryptkey(password, encryptedPrivKey)
+      const key = vaultDecrypt(vaultKey, encryptedPrivKey)
       
       if (key !== false) {
         assertRequestSessionCurrent(sessionScope, sessionError);
@@ -187,8 +240,8 @@ export const requestViewingKey = async (chainTicker, channel) => {
         );
       }
 
-      const password = await requestPassword()
-      const key = decryptkey(password, state.authentication.activeAccount.keys[chainTicker][channel]
+      const vaultKey = await requestVaultKeyForState(state)
+      const key = vaultDecrypt(vaultKey, state.authentication.activeAccount.keys[chainTicker][channel]
         .encryptedViewingKey)
       
       if (key !== false) {
@@ -210,9 +263,8 @@ export const requestPersonalData = async (dataType, _password) => {
   } else if (state.personal[dataType] == null) {
     return {}
   } else {
-    const password = _password ? _password : await requestPassword();
-    
-    const data = decryptkey(password, state.personal[dataType]);
+    const vaultKey = await recordVaultKeyForState(state, state.personal[dataType], _password);
+    const data = vaultDecrypt(vaultKey, state.personal[dataType]);
     
     if (data !== false) {
       try {
@@ -236,8 +288,8 @@ export const requestServiceStoredData = async (service, _password) => {
   } else if (state.services.stored[service] == null) {
     return {};
   } else {
-    const password = _password ? _password : await requestPassword();
-    const data = decryptkey(password, state.services.stored[service]);
+    const vaultKey = await recordVaultKeyForState(state, state.services.stored[service], _password);
+    const data = vaultDecrypt(vaultKey, state.services.stored[service]);
 
     if (data !== false) {
       try {
@@ -261,8 +313,8 @@ export const requestAttestationData = async (dataType) => {
   } else if (state.attestation[dataType] == null) {
     return {}
   } else {
-    const password = await requestPassword()
-    const data = decryptkey(password, state.attestation[dataType])
+    const vaultKey = await requestVaultKeyForState(state)
+    const data = vaultDecrypt(vaultKey, state.attestation[dataType])
     
     if (data !== false) {
       try {

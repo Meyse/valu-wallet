@@ -7,7 +7,6 @@ import {
 import {
   storeUser,
   getActiveCoinList,
-  checkPinForUser,
   resetUserPwd,
   addEncryptedKeyToUser,
   deleteUser,
@@ -17,9 +16,13 @@ import {
   setUserTestnetOverrides,
   setUserHideSeedWarnings,
   updateUsers,
+  unlockUserVault,
+  migrateUserVault,
 } from '../../utils/asyncStore/asyncStore';
+import {passwordFailsRule} from '../../utils/auth/passwordRule';
+import {convertLegacyAttestationRecords} from '../../utils/vault/attestationVaultMigration';
 import {deriveKeyPair} from '../../utils/keys';
-import {decryptkey, encryptkey} from '../../utils/seedCrypt';
+import {vaultDecrypt, vaultEncrypt} from '../../utils/seedCrypt';
 import {hashAccountId} from '../../utils/crypto/hash';
 import {
   CHANNELS,
@@ -45,8 +48,8 @@ import {
 import {removeExistingCoin} from './coins/Coins';
 import {
   initSession,
-  requestPassword,
   requestSeeds,
+  requestVaultKey,
 } from '../../utils/auth/authBox';
 import {
   captureAccountTeardownContext,
@@ -398,14 +401,22 @@ export const fetchUsers = async () => {
   return setAccounts(users);
 };
 
+// `dek` is the unlocked vault key of a v2 account (null for legacy). The
+// resolved action carries it as `vaultKey`; initializeAccountData moves it into
+// the in-memory session cache and never dispatches it to Redux.
 export const authenticateAccount = async (
   account,
   password,
   deferSessionInitialization = false,
+  dek = null,
 ) => {
   let _keys = {};
 
   let seeds = account.encryptedKeys;
+  if (account.vault != null && dek == null) {
+    throw new Error('The vault key is required for this account');
+  }
+  const vaultKey = {password, dek};
 
   return new Promise((resolve, reject) => {
     getActiveCoinList()
@@ -435,7 +446,7 @@ export const authenticateAccount = async (
 
                   if (seeds[seedChannel] == null) throw new Error('No seed for channel ' + seedChannel);
 
-                  const decryptedSeed = decryptkey(password, seeds[seedChannel]);
+                  const decryptedSeed = vaultDecrypt(vaultKey, seeds[seedChannel]);
 
                   if (!decryptedSeed) throw new Error('Failed to decrypt seed for channel ' + seedChannel);
 
@@ -450,14 +461,14 @@ export const authenticateAccount = async (
 
                   _keys[activeCoins[i].id][channel] = {
                     pubKey: keyObj.pubKey,
-                    encryptedPrivKey: await encryptkey(
-                      password,
+                    encryptedPrivKey: await vaultEncrypt(
+                      vaultKey,
                       keyObj.privKey,
                     ),
                     encryptedViewingKey:
                       keyObj.viewingKey == null
                         ? null
-                        : await encryptkey(password, keyObj.viewingKey),
+                        : await vaultEncrypt(vaultKey, keyObj.viewingKey),
                     addresses: keyObj.addresses,
                   };
                 } catch (e) {
@@ -495,6 +506,9 @@ export const authenticateAccount = async (
                 account.testnetOverrides == null
                   ? {}
                   : account.testnetOverrides,
+              // Not secret: tells authBox that this account needs its DEK.
+              vaultVersion: account.vault != null ? account.vault.v : null,
+              passwordFailsRule: passwordFailsRule(password),
             };
 
         let sessionKey = null;
@@ -506,7 +520,7 @@ export const authenticateAccount = async (
             sessionKey = await initSession(password);
           }
 
-          resolve(authenticateUser(activeAccount, sessionKey));
+          resolve({...authenticateUser(activeAccount, sessionKey), vaultKey: dek});
         } catch (sessionError) {
           if (sessionCredentialMutationStarted) {
             try {
@@ -524,29 +538,64 @@ export const authenticateAccount = async (
   });
 };
 
-export const validateLogin = (
+// Moves a legacy account to vault v2 after a successful unlock. A failure
+// never blocks the unlock: the stored data is still the old data, and the next
+// unlock tries again. Only the error code is logged.
+const migrateAfterUnlock = async (user, password) => {
+  if (user.vault != null) return null;
+  if (user.accountHash == null) {
+    console.warn('Vault migration skipped: VAULT_MIGRATION_NO_ACCOUNT_HASH');
+    return null;
+  }
+  try {
+    const result = await migrateUserVault(user.accountHash, password);
+    if (result.status === 'already') {
+      // Another unlock migrated this user after our read. Read it again so the
+      // session uses the stored v2 records and the vault key.
+      const again = await unlockUserVault(password, user.id, false, false);
+      store.dispatch(setAccounts(result.users));
+      return {user: again.user, dek: again.dek};
+    }
+    if (result.status !== 'migrated') return null;
+    store.dispatch(setAccounts(result.users));
+    return result;
+  } catch (error) {
+    console.warn(`Vault migration failed: ${error?.code || error?.name || 'unknown'}`);
+    return null;
+  }
+};
+
+export const validateLogin = async (
   account,
   password,
   deferSessionInitialization = false,
   alertOnFail = true,
 ) => {
-  return new Promise((resolve, reject) => {
-    checkPinForUser(password, account.id, alertOnFail, true)
-      .then(() => {
-        return authenticateAccount(
-          account,
-          password,
-          deferSessionInitialization,
-        );
-      })
-      .then(loginData => {
-        resolve(loginData);
-      })
-      .catch(err => {
-        reject(err);
-        console.warn(err);
-      });
-  });
+  try {
+    const unlocked = await unlockUserVault(password, account.id, alertOnFail, true);
+    let user = unlocked.user;
+    let dek = unlocked.dek;
+
+    const migrated = await migrateAfterUnlock(user, password);
+    if (migrated != null) {
+      user = migrated.user;
+      dek = migrated.dek;
+    }
+
+    if (dek != null) {
+      await convertLegacyAttestationRecords(user.accountHash, password, dek);
+    }
+
+    return await authenticateAccount(
+      {...account, ...user},
+      password,
+      deferSessionInitialization,
+      dek,
+    );
+  } catch (err) {
+    console.warn(err);
+    throw err;
+  }
 };
 
 export const addKeypairs = async (
@@ -561,7 +610,7 @@ export const addKeypairs = async (
   assertCurrent();
   let keypairs = {};
   const coinID = coinObj.id;
-  const accountPass = await requestPassword();
+  const vaultKey = await requestVaultKey(sessionScope);
   assertCurrent();
   const accountSeeds = await requestSeeds();
   assertCurrent();
@@ -593,11 +642,11 @@ export const addKeypairs = async (
 
       keypairs[seedType] = {
         pubKey: keyObj.pubKey,
-        encryptedPrivKey: await encryptkey(accountPass, keyObj.privKey),
+        encryptedPrivKey: await vaultEncrypt(vaultKey, keyObj.privKey),
         encryptedViewingKey:
           keyObj.viewingKey == null
             ? null
-            : await encryptkey(accountPass, keyObj.viewingKey),
+            : await vaultEncrypt(vaultKey, keyObj.viewingKey),
         addresses: keyObj.addresses,
       };
       assertCurrent();

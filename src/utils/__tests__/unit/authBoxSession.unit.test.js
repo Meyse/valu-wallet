@@ -15,6 +15,8 @@ jest.mock('../../keychain/keychain', () => ({
 jest.mock('../../seedCrypt', () => ({
   decryptkey: mockDecryptKey,
   encryptkey: jest.fn(),
+  // Legacy accounts (no vaultVersion) decrypt with the password.
+  vaultDecrypt: (vaultKey, value) => mockDecryptKey(vaultKey.password, value),
 }));
 
 jest.mock('../../crypto/randomBytes', () => ({randomBytes: jest.fn()}));

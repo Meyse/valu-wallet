@@ -3,7 +3,8 @@ import {USER_DATA_STORAGE_INTERNAL_KEY} from '../../../../env/index';
 import {storeUser} from '../../asyncStore/authDataStorage';
 import {hashAccountId} from '../../crypto/hash';
 import {SecureStorage} from '../../keychain/secureStore';
-import * as seedCrypt from '../../seedCrypt';
+import * as envelope from '../../crypto/envelope';
+import {openStoredSeed} from '../../../tests/helpers/vaultTestUtils';
 
 const profile = (userName = 'Import fixture') => ({
   userName,
@@ -25,7 +26,7 @@ describe('atomic profile creation', () => {
 
   it('saves only the first concurrent same-name submission with stale account lists', async () => {
     const original = profile();
-    const encrypt = jest.spyOn(seedCrypt, 'encryptkey');
+    const encrypt = jest.spyOn(envelope, 'encryptRecord');
     const write = jest.spyOn(SecureStorage, 'setItem');
     const staleAccounts = [];
     const results = await Promise.allSettled([
@@ -44,7 +45,7 @@ describe('atomic profile creation', () => {
     expect(users).toHaveLength(1);
     expect(users[0].accountHash).toBe(hashAccountId(original.userName));
     for (const [channel, seed] of Object.entries(original.seeds)) {
-      expect(seedCrypt.decryptkey(original.password, users[0].encryptedKeys[channel])).toBe(seed);
+      expect(await openStoredSeed(original.password, users[0], channel)).toBe(seed);
     }
     expect(encrypt).toHaveBeenCalledTimes(2);
     expect(write.mock.calls.filter(([key]) => key === USER_DATA_STORAGE_INTERNAL_KEY)).toHaveLength(1);
@@ -55,7 +56,7 @@ describe('atomic profile creation', () => {
     const original = profile();
     await storeUser(original, []);
     const before = await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY);
-    const encrypt = jest.spyOn(seedCrypt, 'encryptkey');
+    const encrypt = jest.spyOn(envelope, 'encryptRecord');
     const write = jest.spyOn(SecureStorage, 'setItem');
 
     await expect(storeUser({...original, password: 'replacement password'}, []))
@@ -91,7 +92,7 @@ describe('atomic profile creation', () => {
       accountHash: hashAccountId('Import fixture'),
       encryptedKeys: {electrum: 'original ciphertext'},
     };
-    const encrypt = jest.spyOn(seedCrypt, 'encryptkey');
+    const encrypt = jest.spyOn(envelope, 'encryptRecord');
 
     await expect(storeUser(profile(), [existing]))
       .rejects.toMatchObject({code: 'DUPLICATE_ACCOUNT'});

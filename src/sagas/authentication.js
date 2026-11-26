@@ -12,6 +12,7 @@ import {
   captureAccountTeardownContext,
   clearActiveAccountLifecycles,
 } from '../actions/actions/account/dispatchers/account';
+import { clearSessionVaultKey } from '../utils/vault/vaultSession';
 
 export default function * authenticationSaga() {
   yield all([
@@ -40,6 +41,7 @@ function * handleFinishSignOut(action) {
   const signedOutState = yield select();
   if (!signOutWasAccepted(signedOutState, action)) return;
 
+  clearSessionVaultKey();
   abortAllSessionRequests();
   const sessionScope = captureSessionScope(signedOutState);
   const teardownContext = captureAccountTeardownContext({
