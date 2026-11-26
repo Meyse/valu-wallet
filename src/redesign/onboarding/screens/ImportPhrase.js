@@ -13,6 +13,7 @@ import {biometryName} from '../../logic/biometry';
 import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
 import {useOnboarding} from '../OnboardingContext';
 import {chipSeedHasZ} from '../import/nfcImport';
+import useSecureScreen from '../../components/useSecureScreen';
 
 const SWITCH = [
   {value: 12, label: '12 words'},
@@ -25,6 +26,7 @@ const SWITCH = [
 const SHOW_STEP_LIST = true;
 
 export default function ImportPhrase({navigation}) {
+  useSecureScreen();
   const ob = useOnboarding();
   const steps = SHOW_STEP_LIST
     ? stepListFor('import', ROUTES.importPhrase, {

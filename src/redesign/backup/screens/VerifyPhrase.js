@@ -11,6 +11,7 @@ import {createVerifyQuestions, findVerifyMismatches} from '../../logic/verify';
 import {colors, type} from '../../theme/tokens';
 import {BACKUP_ROUTES, BACKUP_STEPS, useBackup} from '../BackupContext';
 import BackupDone from './BackupDone';
+import useSecureScreen from '../../components/useSecureScreen';
 
 // true: the step list with the done steps and the icon; the screen scrolls ("Alternative - Backup
 // words 07 - step list, scrolls", the default). false: the title only ("Backup words 07 - Verify
@@ -31,6 +32,7 @@ function Chip({word, selected, wrong, onPress, disabled}) {
 }
 
 export default function VerifyPhrase({navigation}) {
+  useSecureScreen();
   const {phrase, accountHash, setPhrase, finish} = useBackup();
   const words = useMemo(() => phrase ?? [], [phrase]);
   const [saving, setSaving] = useState(false);

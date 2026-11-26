@@ -7,10 +7,12 @@ import {DenseScreen, Heading, StepList, TopBar} from '../../components/Layout';
 import StepIcon from '../../components/StepIcons';
 import {Grid, WordCell} from '../../components/PhraseGrid';
 import {BACKUP_ROUTES, BACKUP_STEPS, useBackup} from '../BackupContext';
+import useSecureScreen from '../../components/useSecureScreen';
 
 const PER_PAGE = 8;
 
 export default function WritePhrase({navigation, route}) {
+  useSecureScreen();
   const {phrase} = useBackup();
   const words = phrase ?? [];
   const pages = Math.max(1, Math.ceil(words.length / PER_PAGE));

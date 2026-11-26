@@ -22,6 +22,7 @@ public class MainApplication extends Application implements ReactApplication {
       // Packages that cannot be autolinked yet are added here.
       packages.add(new VerusKeepAwakePackage());
       packages.add(new VerusBiometricEnrollmentPackage());
+      packages.add(new VerusSecureWindowPackage());
       // Arguments: context, packages, JS main module, bundle asset, bundle file, JS runtime
       // (null selects Hermes), developer support, C++ packages, exception handler, bindings.
       mReactHost =

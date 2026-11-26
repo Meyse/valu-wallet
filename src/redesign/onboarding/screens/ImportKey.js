@@ -11,6 +11,7 @@ import {biometryName} from '../../logic/biometry';
 import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
 import {colors, radius, type} from '../../theme/tokens';
 import {useOnboarding} from '../OnboardingContext';
+import useSecureScreen from '../../components/useSecureScreen';
 
 const NO_AUTOFILL = Platform.select({
   ios: {textContentType: 'none', spellCheck: false, autoCorrect: false},
@@ -18,6 +19,7 @@ const NO_AUTOFILL = Platform.select({
 });
 
 export default function ImportKey({navigation}) {
+  useSecureScreen();
   const ob = useOnboarding();
   const [key, setKey] = useState('');
   const [focused, setFocused] = useState(false);
