@@ -72,7 +72,9 @@ export default function Creating({navigation}) {
         activeCoinList: state.coins.activeCoinList,
         dispatch,
         testProfile: ob.testProfile,
-        includeDlightSeed: false,
+        // As the old flows: a new mainnet wallet also gets the shielded (Z) seed (SeedWords
+        // useSeedAsZ = !testProfile); a typed import does not (CreateWallet ImportText).
+        includeDlightSeed: ob.path === 'create' && !ob.testProfile,
         useBiometrics: ob.useBiometrics,
       });
       await recordWalletMade(hashAccountId(WALLET_PROFILE_NAME), ob.path === 'import' ? 'imported' : 'created');

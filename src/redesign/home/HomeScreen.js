@@ -121,8 +121,10 @@ export default function HomeScreen({navigation}) {
   return (
     <BackdropSourceContext.Provider value={root}>
     <View ref={root} collapsable={false} style={styles.root}>
+      {/* The scroll area starts under the status bar, so the balance never scrolls under the clock. */}
       <ScrollView
-        contentContainerStyle={{paddingTop: insets.top + 8, paddingBottom: TAB_BAR_CLEARANCE + insets.bottom}}
+        style={{marginTop: insets.top}}
+        contentContainerStyle={{paddingTop: 8, paddingBottom: TAB_BAR_CLEARANCE + insets.bottom}}
         showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <HeaderButton icon="headerScan" label="Scan QR code" onPress={() => setScanInfo(true)} testID="home-scan" />
@@ -163,7 +165,7 @@ export default function HomeScreen({navigation}) {
               )}
             </Text>
             <View style={styles.assets}>
-              {assets.map(({coin, crypto}) => (
+              {assets.map(({coin, crypto, known}) => (
                 <View key={coin.id} style={styles.assetRow}>
                   <CoinTile coin={coin} />
                   <View style={styles.assetText}>
@@ -171,7 +173,7 @@ export default function HomeScreen({navigation}) {
                       {coin.display_name ?? coin.id}
                     </Text>
                     <Text style={[type.caption, {color: colors.textSecondary, opacity: crypto.isZero() ? 0.4 : 1}]}>
-                      {showBalance ? `${formatCrypto(crypto)} ${coin.display_ticker ?? coin.id}` : '***'}
+                      {showBalance ? `${known ? formatCrypto(crypto) : '—'} ${coin.display_ticker ?? coin.id}` : '***'}
                     </Text>
                   </View>
                 </View>

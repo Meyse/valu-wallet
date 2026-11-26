@@ -1,3 +1,4 @@
+import {placeWords} from '../importValidation';
 import {getPasswordGate, getPasswordStrength} from '../password';
 import {createVerifyQuestions, findVerifyMismatches} from '../verify';
 import {
@@ -164,5 +165,24 @@ describe('step order', () => {
   it('shows the password step as 2 of 3 on import and 1 of 4 on create', () => {
     expect(progressFor('import', ROUTES.password)).toEqual([2, 3]);
     expect(progressFor('create', ROUTES.password)).toEqual([1, 4]);
+  });
+});
+
+describe('placeWords', () => {
+  const empty = n => Array(n).fill('');
+
+  it('ends a typed word with a space and moves to the next slot', () => {
+    expect(placeWords(empty(12), 0, 'legal ')).toEqual({words: ['legal', ...empty(11)], focus: 1});
+  });
+
+  it('spreads a partial paste over the next slots', () => {
+    const r = placeWords(empty(12), 10, 'winner thank');
+    expect(r.words.slice(10)).toEqual(['winner', 'thank']);
+  });
+
+  it('refuses a paste with more words than the slots left, so no word is dropped', () => {
+    // 23 words of a 24-word backup pasted into the 12-word grid.
+    const text = Array(23).fill('abandon').join(' ');
+    expect(placeWords(empty(12), 0, text)).toEqual({overflow: 23});
   });
 });

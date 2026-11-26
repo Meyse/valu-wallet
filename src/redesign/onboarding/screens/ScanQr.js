@@ -1,6 +1,6 @@
 // R03d Scan QR code: camera view, dim overlay with a 218 x 218 window, corner marks, close mark
 // and one hint line. A valid phrase or key goes on to the password step.
-import React, {useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useIsFocused} from '@react-navigation/native';
 import {Camera, useCameraDevice, useCodeScanner} from 'react-native-vision-camera';
@@ -29,11 +29,20 @@ export default function ScanQr({navigation}) {
   const {width, height} = useWindowDimensions();
   const [error, setError] = useState(null);
   const handled = useRef(false);
+  // Back from the password step returns here: scan again.
+  useEffect(() => {
+    if (focused) handled.current = false;
+  }, [focused]);
 
   const scanner = useCodeScanner({
     codeTypes: ['qr'],
     onCodeScanned: codes => {
       if (handled.current) return;
+      // Only one code at a time: with two codes in view, the wallet read could be the wrong one.
+      if (codes?.length > 1) {
+        setError('More than one QR code is in view. Show one code only.');
+        return;
+      }
       const value = codes?.[0]?.value;
       if (!value) return;
       const found = classifyScannedText(value);

@@ -18,13 +18,15 @@ const RootStack = createStackNavigator();
 
 // Redesign switch on: new onboarding, returning-user screen and Home shell.
 // Switch off: the routes below are the app as it is on `main`.
+// The new screens use the old route names: deep-link and service screens reset the root stack to
+// 'SignedInStack', 'SignedOutStack' or 'SignedOutNoKeyStack' when they finish.
 const redesignRoute = ({loading, hasAccount, signedIn, holdOnboarding}) => {
   if (loading) return <RootStack.Screen name="LoadingStack" component={LoadingStackScreens} />;
   if (!hasAccount || holdOnboarding) {
-    return <RootStack.Screen name="RedesignOnboarding" component={RedesignOnboarding} />;
+    return <RootStack.Screen name="SignedOutNoKeyStack" component={RedesignOnboarding} />;
   }
-  if (signedIn) return <RootStack.Screen name="RedesignHome" component={RedesignHome} />;
-  return <RootStack.Screen name="RedesignUnlock" component={RedesignUnlock} />;
+  if (signedIn) return <RootStack.Screen name="SignedInStack" component={RedesignHome} />;
+  return <RootStack.Screen name="SignedOutStack" component={RedesignUnlock} />;
 };
 
 const RootStackScreens = props => {
@@ -37,26 +39,30 @@ const RootStackScreens = props => {
         mode: 'modal',
         headerShown: false,
       }}>
-      {redesign ? redesignRoute({...props, holdOnboarding}) : props.loading ? (
-        <RootStack.Screen name="LoadingStack" component={LoadingStackScreens} />
-      ) : props.hasAccount ? (
-        props.signedIn ? (
-          <RootStack.Screen name="SignedInStack" component={SignedInStackScreens} />
+      {/* The old and the new UI share route names, but not nested state. A new navigationKey
+          removes the screens of the other UI and their nested state when the switch changes. */}
+      <RootStack.Group navigationKey={redesign ? 'redesign' : 'classic'}>
+        {redesign ? redesignRoute({...props, holdOnboarding}) : props.loading ? (
+          <RootStack.Screen name="LoadingStack" component={LoadingStackScreens} />
+        ) : props.hasAccount ? (
+          props.signedIn ? (
+            <RootStack.Screen name="SignedInStack" component={SignedInStackScreens} />
+          ) : (
+            <RootStack.Screen
+              name="SignedOutStack"
+              component={SignedOutStackScreens}
+              options={{
+                headerRight: () => null,
+              }}
+            />
+          )
         ) : (
           <RootStack.Screen
-            name="SignedOutStack"
-            component={SignedOutStackScreens}
-            options={{
-              headerRight: () => null,
-            }}
+            name="SignedOutNoKeyStack"
+            component={SignedOutNoKeyStackScreens}
           />
-        )
-      ) : (
-        <RootStack.Screen
-          name="SignedOutNoKeyStack"
-          component={SignedOutNoKeyStackScreens}
-        />
-      )}
+        )}
+      </RootStack.Group>
       <RootStack.Screen
         name="DeepLink"
         component={DeepLinkStackScreens}

@@ -38,7 +38,7 @@ function Meter({strength}) {
   );
 }
 
-function PasswordField({label, value, onChangeText, error, inputRef, onSubmit, placeholder, returnKeyType, testID}) {
+function PasswordField({label, value, onChangeText, error, inputRef, onSubmit, onFocus, placeholder, returnKeyType, testID}) {
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
   const border = error ? colors.error : focused ? colors.accent : colors.text;
@@ -53,7 +53,10 @@ function PasswordField({label, value, onChangeText, error, inputRef, onSubmit, p
           secureTextEntry={!visible}
           placeholder={placeholder}
           placeholderTextColor={colors.textPlaceholder}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            onFocus?.();
+          }}
           onBlur={() => setFocused(false)}
           onSubmitEditing={onSubmit}
           submitBehavior={returnKeyType === 'next' ? 'submit' : 'blurAndSubmit'}
@@ -84,12 +87,24 @@ export default function CreatePassword({navigation}) {
   const [confirm, setConfirm] = useState(ob.password ?? '');
   const first = useRef(null);
   const second = useRef(null);
+  const scroll = useRef(null);
+  const reveal = useRef(null);
   const gate = getPasswordGate(password, confirm);
 
   useEffect(() => {
     const t = setTimeout(() => first.current?.focus(), 350);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(reveal.current);
+    };
   }, []);
+
+  // Small phones: the confirm field and its error sit at the end of the form. Show them in full
+  // above the button once the keyboard has made room.
+  const showConfirm = () => {
+    clearTimeout(reveal.current);
+    reveal.current = setTimeout(() => scroll.current?.scrollToEnd({animated: true}), 300);
+  };
 
   const next = () => {
     if (!gate.canContinue) return;
@@ -99,6 +114,7 @@ export default function CreatePassword({navigation}) {
 
   return (
     <DenseScreen
+      scrollRef={scroll}
       topBar={<TopBar onBack={() => navigation.goBack()} progress={progressFor(ob.path, ROUTES.password)} />}
       footer={<ValuButton label="Continue" onPress={next} disabled={!gate.canContinue} testID="password-continue" />}>
       <View style={styles.content}>
@@ -123,6 +139,7 @@ export default function CreatePassword({navigation}) {
               value={confirm}
               onChangeText={setConfirm}
               inputRef={second}
+              onFocus={showConfirm}
               placeholder="Repeat password"
               returnKeyType="done"
               onSubmit={next}

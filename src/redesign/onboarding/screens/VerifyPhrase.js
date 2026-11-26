@@ -45,7 +45,8 @@ export default function VerifyPhrase({navigation}) {
     setMismatches(null);
     setRound(r => r + 1);
     setPicks(questions.map(() => null));
-    navigation.navigate(ROUTES.phrase, {page: 0, at: Date.now()});
+    // Back to the phrase screen already in the stack (React Navigation 7 navigate would push a new one).
+    navigation.popTo(ROUTES.phrase, {page: 0, at: Date.now()});
   };
 
   const firstWrong = failed ? mismatches.findIndex(Boolean) : -1;

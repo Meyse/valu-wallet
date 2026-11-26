@@ -86,6 +86,8 @@ export default function ReturningUser({navigation}) {
   const [focused, setFocused] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  // True while Face ID or Touch ID runs: the profile must not change under a pending unlock.
+  const [bioPending, setBioPending] = useState(false);
   const [biometry, setBiometry] = useState(null);
   const [chooser, setChooser] = useState(false);
   const inFlight = useRef(false);
@@ -125,6 +127,7 @@ export default function ReturningUser({navigation}) {
   const unlockWithBiometrics = useCallback(async () => {
     if (!canBio || inFlight.current || bioInFlight.current) return;
     bioInFlight.current = true;
+    setBioPending(true);
     try {
       const key = await getBiometricPassword(account.accountHash, PROMPT);
       if (key != null) await unlock(key);
@@ -133,6 +136,7 @@ export default function ReturningUser({navigation}) {
       if (isBioStorageError(e)) setError(`${bioName} is not available. Use your password.`);
     } finally {
       bioInFlight.current = false;
+      setBioPending(false);
       if (suppressAuto) dispatch(setSuppressUnlockAutoBiometrics(false));
     }
   }, [account, canBio, bioName, unlock, suppressAuto, dispatch]);
@@ -172,6 +176,7 @@ export default function ReturningUser({navigation}) {
                 <Pressable
                   style={styles.walletRow}
                   onPress={() => setChooser(true)}
+                  disabled={busy || bioPending}
                   accessibilityRole="button"
                   accessibilityLabel={`Profile ${account?.id}. Change profile`}
                   testID="unlock-change-profile">

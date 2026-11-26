@@ -14,17 +14,20 @@ export function rateFor(rates, coinId, currency, channels = [WYRE_SERVICE, GENER
 
 // coins: activeCoinsForUser; subWallets: {coinId: [{id}]}; balances: {coinId: {walletId: {total}}}.
 // Returns assets with balance first, then the total in the display currency.
-// total is null when a coin with funds has no rate (the sum would be wrong).
+// total is null while a balance has not loaded (known: false) or when a coin with funds has no
+// rate: the sum would be wrong, and a funded wallet must never show 0.00.
 export function summarizeBalances({coins = [], subWallets = {}, balances = {}, rate = () => null}) {
   const assets = coins.map((coin, order) => {
     let crypto = new BigNumber(0);
+    let known = true;
     for (const wallet of subWallets[coin.id] ?? []) {
       const total = balances[coin.id]?.[wallet.id]?.total;
       if (total != null) crypto = crypto.plus(new BigNumber(total));
+      else known = false;
     }
     const r = rate(coin.id);
     const fiat = r != null ? crypto.multipliedBy(r) : null;
-    return {coin, crypto, fiat, order};
+    return {coin, crypto, fiat, order, known};
   });
 
   assets.sort((a, b) => {
@@ -37,6 +40,7 @@ export function summarizeBalances({coins = [], subWallets = {}, balances = {}, r
     return a.order - b.order;
   });
 
+  if (assets.some(a => !a.known)) return {assets, total: null};
   let total = new BigNumber(0);
   for (const a of assets) {
     if (a.fiat != null) total = total.plus(a.fiat);

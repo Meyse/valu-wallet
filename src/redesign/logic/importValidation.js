@@ -38,6 +38,19 @@ export const parsePastedPhrase = text => {
   return PHRASE_LENGTHS.includes(words.length) ? words : null;
 };
 
+// Typed or pasted text in word slot `index` that holds whitespace: the first word goes in the slot,
+// the next words in the following slots. Returns {words, focus}, or {overflow: n} when the n words
+// do not fit in the slots left: a word is never dropped in silence.
+export const placeWords = (prev, index, text) => {
+  const list = String(text ?? '').trim().split(/\s+/).filter(Boolean).map(normalizeWord);
+  if (list.length > prev.length - index) return {overflow: list.length};
+  const words = [...prev];
+  list.forEach((w, k) => {
+    words[index + k] = w;
+  });
+  return {words, focus: Math.min(index + list.length, prev.length - 1)};
+};
+
 // status: 'incomplete' | 'unknown-word' | 'checksum' | 'valid'
 export const checkPhrase = words => {
   const clean = words.map(normalizeWord);

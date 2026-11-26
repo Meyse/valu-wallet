@@ -22,7 +22,9 @@ export default function RecoveryPhrase({navigation, route}) {
   useEffect(
     () =>
       navigation.addListener('beforeRemove', e => {
-        if (pageRef.current === 0 || e.data.action.type !== 'GO_BACK') return;
+        // GO_BACK: Android Back. POP: the iOS swipe.
+        const type = e.data.action.type;
+        if (pageRef.current === 0 || (type !== 'GO_BACK' && type !== 'POP')) return;
         e.preventDefault();
         setPage(pageRef.current - 1);
       }),

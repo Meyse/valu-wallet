@@ -8,7 +8,7 @@ describe('summarizeBalances', () => {
     const {assets, total} = summarizeBalances({
       coins: [VRSC, ETH],
       subWallets: {VRSC: [{id: 'main'}], ETH: [{id: 'main'}]},
-      balances: {},
+      balances: {VRSC: {main: {total: '0'}}, ETH: {main: {total: '0'}}},
       rate: () => 2,
     });
     expect(formatFiat(total)).toBe('0.00');
@@ -20,7 +20,7 @@ describe('summarizeBalances', () => {
     const {assets, total} = summarizeBalances({
       coins: [VRSC, ETH],
       subWallets: {VRSC: [{id: 'a'}, {id: 'b'}], ETH: [{id: 'main'}]},
-      balances: {VRSC: {}, ETH: {main: {total: '0.1'}}},
+      balances: {VRSC: {a: {total: '0'}, b: {total: '0'}}, ETH: {main: {total: '0.1'}}},
       rate: id => (id === 'ETH' ? '0.2' : '1'),
     });
     // 0.1 * 0.2 is 0.020000000000000004 in floats.
@@ -36,6 +36,17 @@ describe('summarizeBalances', () => {
       balances: {VRSC: {a: {total: '1.5'}, b: {total: '2.25'}}},
     });
     expect(formatCrypto(assets[0].crypto)).toBe('3.75');
+  });
+
+  it('gives no total while a balance has not loaded, so a funded wallet never shows 0.00', () => {
+    const {assets, total} = summarizeBalances({
+      coins: [VRSC, ETH],
+      subWallets: {VRSC: [{id: 'main'}], ETH: [{id: 'main'}]},
+      balances: {VRSC: {main: {total: '0'}}},
+      rate: () => 2,
+    });
+    expect(total).toBeNull();
+    expect(assets.find(a => a.coin.id === 'ETH').known).toBe(false);
   });
 
   it('gives no total when a funded coin has no rate', () => {

@@ -10,7 +10,7 @@ import {DenseScreen, ErrorText, Heading, PillButton, TopBar} from '../../compone
 import {Grid, Segmented, WordSlot} from '../../components/PhraseGrid';
 import Sheet from '../../components/Sheet';
 import Icon from '../../components/Icon';
-import {checkPhrase, normalizeWord, parsePastedPhrase} from '../../logic/importValidation';
+import {checkPhrase, normalizeWord, parsePastedPhrase, placeWords} from '../../logic/importValidation';
 import {ROUTES, nextRoute, progressFor} from '../../logic/steps';
 import {useOnboarding} from '../OnboardingContext';
 
@@ -102,19 +102,16 @@ export default function ImportPhrase({navigation}) {
       fill(pasted);
       return;
     }
-    // A space or a line break ends the word and moves to the next slot.
+    // A space or a line break ends the word and moves to the next slot. Words that do not fit are
+    // refused, never dropped: a cut phrase can pass the checksum and open a different wallet.
     if (/\s/.test(text) && text.trim().length > 0) {
-      const [first, ...rest] = text.trim().split(/\s+/);
-      setWords(prev => {
-        const next = [...prev];
-        next[i] = normalizeWord(first);
-        rest.forEach((w, k) => {
-          if (i + 1 + k < next.length) next[i + 1 + k] = normalizeWord(w);
-        });
-        return next;
-      });
-      const target = Math.min(i + 1 + rest.length, count - 1);
-      refs.current[target]?.focus();
+      const placed = placeWords(words, i, text);
+      if (placed.overflow) {
+        setPasteError(`The copied text has ${placed.overflow} words. Only ${count - i} fit from word ${i + 1}.`);
+        return;
+      }
+      setWords(placed.words);
+      refs.current[placed.focus]?.focus();
       return;
     }
     setWords(prev => prev.map((w, k) => (k === i ? text.replace(/\s/g, '').toLowerCase() : w)));
