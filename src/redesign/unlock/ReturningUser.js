@@ -153,7 +153,7 @@ export default function ReturningUser({navigation}) {
     <BackdropSourceContext.Provider value={root}>
       <StatusBar barStyle="light-content" />
       <View ref={root} collapsable={false} style={styles.root}>
-        <OnboardingBackground lift={background.lift} opacity={background.opacity} />
+        <OnboardingBackground scene={background.scene} opacity={background.opacity} />
         <KeyboardAvoidingView style={styles.flex} behavior="padding">
           <ScrollView
             ref={scroll}

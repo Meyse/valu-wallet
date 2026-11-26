@@ -1,5 +1,6 @@
-// Step order of the redesigned onboarding (flow note, rounds 1 to 4).
-// Create: password, Face ID, back up, verify. Import: phrase (or key / QR), password, Face ID.
+// Step order of the redesigned onboarding (flow note, rounds 5 to 7).
+// Create: password, Face ID. No recovery phrase in onboarding: the backup comes later, inside the
+// wallet. Import: a way from the sheet (phrase or key, QR, NFC chip), then password and Face ID.
 export const ROUTES = {
   welcome: 'Welcome',
   importPhrase: 'ImportPhrase',
@@ -7,21 +8,10 @@ export const ROUTES = {
   importKey: 'ImportKey',
   password: 'CreatePassword',
   faceId: 'UseFaceId',
-  backUp: 'BackUp',
-  phrase: 'RecoveryPhrase',
-  verify: 'VerifyPhrase',
   creating: 'Creating',
 };
 
-export const CREATE_PATH = [
-  ROUTES.welcome,
-  ROUTES.password,
-  ROUTES.faceId,
-  ROUTES.backUp,
-  ROUTES.phrase,
-  ROUTES.verify,
-  ROUTES.creating,
-];
+export const CREATE_PATH = [ROUTES.welcome, ROUTES.password, ROUTES.faceId, ROUTES.creating];
 
 export const IMPORT_PATH = [
   ROUTES.welcome,
@@ -51,30 +41,9 @@ export const progressFor = (path, route) => {
     if (route === ROUTES.password) return [2, 3];
     return [3, 3];
   }
-  if (route === ROUTES.password) return [1, 4];
-  if (route === ROUTES.phrase) return [3, 4];
-  if (route === ROUTES.verify) return [4, 4];
-  return [2, 4];
+  return route === ROUTES.password ? [1, 2] : [2, 2];
 };
 
-// Step list on icon-led screens (R07, R09): names of done and next steps.
-// The Face ID step is left out when the device has no biometry.
-export const stepListFor = (path, route, {biometry = true, bioName = 'Face ID'} = {}) => {
-  if (path === 'import') {
-    return {done: ['Import phrase', 'Create password'], next: []};
-  }
-  if (route === ROUTES.faceId) {
-    return {done: ['Create password'], next: ['Back up wallet', 'Verify phrase']};
-  }
-  // ROUTES.backUp
-  return {done: biometry ? ['Create password', `Use ${bioName}`] : ['Create password'], next: ['Verify phrase']};
-};
-
-// Screens where the shared background moves up so the content has room.
-export const DENSE_ROUTES = [
-  ROUTES.importPhrase,
-  ROUTES.importKey,
-  ROUTES.password,
-  ROUTES.phrase,
-  ROUTES.verify,
-];
+// Step list on the Face ID step (Create 04, Import next 2): done steps above the icon.
+export const stepListFor = path =>
+  path === 'import' ? {done: ['Import wallet', 'Create password'], next: []} : {done: ['Create password'], next: []};

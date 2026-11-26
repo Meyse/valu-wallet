@@ -1,4 +1,4 @@
-// Redesigned onboarding (R01 to R15). The shared background is mounted once here, behind the
+// Redesigned onboarding (Paper p-2-0: create 01-08, import 01-04). The shared background is mounted once here, behind the
 // stack, so its clock never resets on navigation. Screens have transparent cards.
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {StatusBar, StyleSheet, View} from 'react-native';
@@ -6,9 +6,10 @@ import {createStackNavigator} from '@react-navigation/stack';
 import {ThemeProvider, useTheme} from '@react-navigation/native';
 import {colors} from '../theme/tokens';
 import OnboardingBackground, {useBackgroundControls} from '../components/OnboardingBackground';
+import {SCENES} from '../components/gradientMorph';
 import {BackdropSourceContext} from '../components/Sheet';
 import {ContentFadeContext, SharedBackGlass, SharedBackGlassContext} from '../components/Layout';
-import {DENSE_ROUTES, ROUTES} from '../logic/steps';
+import {ROUTES} from '../logic/steps';
 import {getSupportedBiometryType} from '../../utils/keychain/keychain';
 import {OnboardingProvider, useOnboarding} from './OnboardingContext';
 import {useDeeplinkForward} from '../state/useDeeplinkForward';
@@ -19,15 +20,19 @@ import ImportKey from './screens/ImportKey';
 import ScanQr from './screens/ScanQr';
 import CreatePassword from './screens/CreatePassword';
 import UseFaceId from './screens/UseFaceId';
-import BackUp from './screens/BackUp';
-import RecoveryPhrase from './screens/RecoveryPhrase';
-import VerifyPhrase from './screens/VerifyPhrase';
 import Creating from './screens/Creating';
 
 const Stack = createStackNavigator();
 
-// Paper moves the gradient header up by 230 on dense screens (T -230).
-export const DENSE_LIFT = -230;
+// The background scene of each screen, from its Paper artboard (see gradientMorph.js).
+export const SCENE_FOR = {
+  [ROUTES.welcome]: SCENES.hero,
+  [ROUTES.importPhrase]: SCENES.dense,
+  [ROUTES.importKey]: SCENES.dense,
+  [ROUTES.password]: SCENES.dense,
+  [ROUTES.faceId]: SCENES.icon,
+  [ROUTES.creating]: SCENES.hero,
+};
 
 // Cards are transparent over the shared background, so screens cross-fade with a short
 // slide instead of sliding over each other. The fade is on the screen content (FadeView in
@@ -65,10 +70,10 @@ const NO_BACK = [ROUTES.welcome, ROUTES.creating, ROUTES.scanQr];
 function Screens({background, onRoute}) {
   const onFocus = name => {
     onRoute(name);
-    background.setLift(DENSE_ROUTES.includes(name) ? DENSE_LIFT : 0);
-    // No glow on the camera screen (DESIGN.md).
-    if (name === ROUTES.scanQr) background.fadeTo(0, 300);
-    else if (name !== ROUTES.welcome) background.fadeTo(1, 600);
+    // No glow on the camera screen (DESIGN.md): it fades where it is.
+    if (name === ROUTES.scanQr) background.setScene({strength: 0});
+    else background.setScene(SCENE_FOR[name] ?? SCENES.hero);
+    if (name !== ROUTES.welcome) background.fadeTo(1, 600);
   };
   return (
     <Stack.Navigator
@@ -86,9 +91,6 @@ function Screens({background, onRoute}) {
       <Stack.Screen name={ROUTES.scanQr} component={ScanQr} />
       <Stack.Screen name={ROUTES.password} component={CreatePassword} />
       <Stack.Screen name={ROUTES.faceId} component={UseFaceId} />
-      <Stack.Screen name={ROUTES.backUp} component={BackUp} />
-      <Stack.Screen name={ROUTES.phrase} component={RecoveryPhrase} />
-      <Stack.Screen name={ROUTES.verify} component={VerifyPhrase} />
       <Stack.Screen name={ROUTES.creating} component={Creating} options={{gestureEnabled: false}} />
     </Stack.Navigator>
   );
@@ -115,7 +117,7 @@ export default function OnboardingNavigator({navigation}) {
         <BiometryProbe />
         <StatusBar barStyle="light-content" />
         <View ref={root} collapsable={false} style={styles.root}>
-          <OnboardingBackground lift={background.lift} opacity={background.opacity} />
+          <OnboardingBackground scene={background.scene} opacity={background.opacity} />
           <ThemeProvider value={clearTheme}>
             <SharedBackGlass visible={!NO_BACK.includes(route)} />
             <ContentFadeContext.Provider value={true}>

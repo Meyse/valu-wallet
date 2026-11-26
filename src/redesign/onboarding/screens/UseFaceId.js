@@ -15,7 +15,7 @@ export default function UseFaceId({navigation}) {
   const [error, setError] = useState(null);
   const name = biometryName(ob.biometry);
   const isFace = /face/i.test(name);
-  const steps = stepListFor(ob.path, ROUTES.faceId);
+  const steps = stepListFor(ob.path);
 
   const go = use => {
     ob.setUseBiometrics(use);

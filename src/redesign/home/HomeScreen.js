@@ -63,7 +63,7 @@ function CoinTile({coin}) {
 }
 
 const ACTIVITY_COPY = {
-  created: {title: 'Wallet created', body: 'Recovery phrase verified'},
+  created: {title: 'Wallet created', body: 'On this phone'},
   imported: {title: 'Wallet imported', body: 'Restored on this phone'},
 };
 

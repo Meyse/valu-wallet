@@ -1,6 +1,8 @@
-// R14 Creating wallet and R15 Wallet ready (sheet). Creation reuses createProfileFromSeed
+// Create 06 Creating wallet and Create 07 Wallet ready (sheet). Creation reuses createProfileFromSeed
 // unchanged: it derives the keys, encrypts the seed with the password, stores the biometric
-// password when asked, and signs the account in.
+// password when asked, and signs the account in. On the create path the 24 words are made here, with
+// the app's existing generator (getKey(256)), and the user does not see them: the backup comes
+// later, inside the wallet (round 5). The wallet is recorded as "not backed up".
 import React, {useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useDispatch, useStore} from 'react-redux';
@@ -20,6 +22,8 @@ import ValuButton, {TextLink} from '../../components/ValuButton';
 import {colors, type} from '../../theme/tokens';
 import {createProfileFromSeed} from '../../../utils/profile/createProfileFromSeed';
 import {hashAccountId} from '../../../utils/crypto/hash';
+import {getKey} from '../../../utils/keyGenerator/keyGenerator';
+import {clearBackupRecord, recordNeedsBackup} from '../../state/backupState';
 import {setHoldOnboarding} from '../../state/redesignState';
 import {recordWalletMade} from '../../state/welcomeState';
 import {WALLET_PROFILE_NAME, useOnboarding} from '../OnboardingContext';
@@ -76,11 +80,16 @@ export default function Creating({navigation}) {
     // Keep the onboarding on screen while the new account signs in behind it.
     setHoldOnboarding(true);
     try {
+      const accountHash = hashAccountId(WALLET_PROFILE_NAME);
+      // Create path: the "not backed up" record first (a failed write stops here, before any
+      // wallet exists), then a new phrase for this attempt only. It is never put in shared state.
+      if (ob.path === 'create') await recordNeedsBackup(accountHash);
+      const seed = ob.path === 'create' ? await getKey(256) : ob.secret;
       const state = store.getState();
       await createProfileFromSeed({
         profileName: WALLET_PROFILE_NAME,
         password: ob.password,
-        seed: ob.secret,
+        seed,
         accounts: state.authentication.accounts,
         activeCoinList: state.coins.activeCoinList,
         dispatch,
@@ -90,7 +99,9 @@ export default function Creating({navigation}) {
         includeDlightSeed: ob.path === 'create' && !ob.testProfile,
         useBiometrics: ob.useBiometrics,
       });
-      await recordWalletMade(hashAccountId(WALLET_PROFILE_NAME), ob.path === 'import' ? 'imported' : 'created');
+      await recordWalletMade(accountHash, ob.path === 'import' ? 'imported' : 'created');
+      // An imported wallet already has a backup (the words, key, QR code or chip): no reminder.
+      if (ob.path === 'import') await clearBackupRecord(accountHash);
       // The phrase and the password are encrypted and stored now: drop the plain copies.
       dropSecrets();
       setPhase('ready');
@@ -187,7 +198,7 @@ export default function Creating({navigation}) {
         onClose={goToWallet}
         icon={<Icon name="key" />}
         title="Your wallet is ready"
-        body="You can now receive and send funds. Keep your recovery phrase safe."
+        body="You can now receive and send funds."
         testID="ready-sheet"
         buttons={[{label: 'Go to wallet', variant: 'accent', onPress: goToWallet, testID: 'ready-go'}]}
       />

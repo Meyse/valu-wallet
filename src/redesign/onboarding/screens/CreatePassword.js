@@ -150,7 +150,7 @@ export default function CreatePassword({navigation}) {
           </View>
         </View>
         <Text style={[type.body, styles.footnote]}>
-          If you forget it, restore your wallet with your recovery phrase. Valu cannot reset it for you.
+          If you forget it, you need a backup of your wallet to get back in.
         </Text>
       </View>
     </DenseScreen>

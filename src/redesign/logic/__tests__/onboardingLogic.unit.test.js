@@ -133,19 +133,11 @@ describe('phrase and key checks', () => {
 });
 
 describe('step order', () => {
-  it('create: password, Face ID, back up, phrase, verify, creating', () => {
+  it('create: password, Face ID, creating, with no recovery phrase step (round 5)', () => {
     const order = [ROUTES.welcome];
     let r = ROUTES.welcome;
     while ((r = nextRoute('create', r))) order.push(r);
-    expect(order).toEqual([
-      'Welcome',
-      'CreatePassword',
-      'UseFaceId',
-      'BackUp',
-      'RecoveryPhrase',
-      'VerifyPhrase',
-      'Creating',
-    ]);
+    expect(order).toEqual(['Welcome', 'CreatePassword', 'UseFaceId', 'Creating']);
   });
 
   it('import: phrase first, then password and Face ID; key and QR join at the password', () => {
@@ -158,13 +150,13 @@ describe('step order', () => {
   });
 
   it('skips Face ID when the device has no biometry', () => {
-    expect(nextRoute('create', ROUTES.password, {biometry: false})).toBe('BackUp');
+    expect(nextRoute('create', ROUTES.password, {biometry: false})).toBe('Creating');
     expect(nextRoute('import', ROUTES.password, {biometry: false})).toBe('Creating');
   });
 
-  it('shows the password step as 2 of 3 on import and 1 of 4 on create', () => {
+  it('shows the password step as 2 of 3 on import and 1 of 2 on create (Paper bar 50 %)', () => {
     expect(progressFor('import', ROUTES.password)).toEqual([2, 3]);
-    expect(progressFor('create', ROUTES.password)).toEqual([1, 4]);
+    expect(progressFor('create', ROUTES.password)).toEqual([1, 2]);
   });
 });
 
