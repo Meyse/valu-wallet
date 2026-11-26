@@ -10,6 +10,7 @@ import {NativeModules, Platform} from 'react-native';
 const secureWindow = Platform.OS === 'android' ? NativeModules.VerusSecureWindow : null;
 // A count, not a flag: Write down and Verify are mounted at the same time.
 let holders = 0;
+let waiters = [];
 
 const apply = secure => {
   try {
@@ -25,7 +26,27 @@ export default function useSecureScreen() {
     if (holders === 1) apply(true);
     return () => {
       holders = Math.max(0, holders - 1);
-      if (holders === 0) apply(false);
+      if (holders === 0) {
+        apply(false);
+        const ready = waiters;
+        waiters = [];
+        ready.forEach(run => run());
+      }
     };
   }, []);
+}
+
+// An Android Modal copies FLAG_SECURE from the activity when its dialog is made, and keeps it. A sheet
+// that opens while a secure screen is still mounted (Back from Import phrase to the import sheet, the
+// Ready sheet after an import) would then block screenshots until it closes. Open such a sheet here:
+// at once when no secure screen is mounted, else after the last one is removed. Returns a cancel.
+export function afterSecureScreens(run) {
+  if (!secureWindow || holders === 0) {
+    run();
+    return () => {};
+  }
+  waiters.push(run);
+  return () => {
+    waiters = waiters.filter(w => w !== run);
+  };
 }

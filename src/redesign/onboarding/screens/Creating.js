@@ -27,6 +27,7 @@ import {clearBackupRecord, recordNeedsBackup} from '../../state/backupState';
 import {setHoldOnboarding} from '../../state/redesignState';
 import {recordWalletMade} from '../../state/welcomeState';
 import {WALLET_PROFILE_NAME, useOnboarding} from '../OnboardingContext';
+import {afterSecureScreens} from '../../components/useSecureScreen';
 
 function Spinner() {
   const r = useSharedValue(0);
@@ -106,7 +107,8 @@ export default function Creating({navigation}) {
       if (ob.path === 'import') await clearBackupRecord(accountHash);
       // The phrase and the password are encrypted and stored now: drop the plain copies.
       dropSecrets();
-      setPhase('ready');
+      // After an import, the phrase or key screen is removed by dropSecrets: open the sheet after it.
+      afterSecureScreens(() => setPhase('ready'));
     } catch (e) {
       ob.creationStarted.current = false;
       const made = store

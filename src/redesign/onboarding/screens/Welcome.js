@@ -21,6 +21,7 @@ import {ROUTES} from '../../logic/steps';
 import ImportWaySheet from '../import/ImportWaySheet';
 import {useCameraGate} from '../import/cameraGate';
 import {chipSeedHasZ, useNfcRead} from '../import/nfcImport';
+import {afterSecureScreens} from '../../components/useSecureScreen';
 
 const IS_ANDROID = Platform.OS === 'android';
 
@@ -43,6 +44,7 @@ export default function Welcome({navigation}) {
   const [nfcError, setNfcError] = useState(null);
   const taps = useRef(0);
   const later = useRef(null);
+  const waitSecure = useRef(() => {});
   const camera = useCameraGate(navigation);
   const nfc = useNfcRead({
     onPhrase: phrase => {
@@ -64,11 +66,14 @@ export default function Welcome({navigation}) {
       if (!ob.sheetReturn.current) return;
       ob.sheetReturn.current = false;
       clearTimeout(later.current);
-      later.current = setTimeout(() => setWaySheet(true), AFTER_SHEET_MS);
+      later.current = setTimeout(() => {
+        waitSecure.current = afterSecureScreens(() => setWaySheet(true));
+      }, AFTER_SHEET_MS);
     });
     return () => {
       off();
       clearTimeout(later.current);
+      waitSecure.current();
     };
   }, [navigation, ob.sheetReturn]);
 
