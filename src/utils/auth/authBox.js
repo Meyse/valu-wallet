@@ -85,14 +85,20 @@ const requestVaultKeyForState = async (
     throw new Error("Unable to load the wallet vault");
   }
   const dek = await unwrapVaultKey(password, user.accountHash, user.vault);
-  assertRequestSessionCurrent(sessionScope, sessionError);
+  // The KDF takes time. Never return the key when the session changed while
+  // it ran (sign-out, account switch, new login), even for an unscoped call.
   const current = store.getState().authentication;
   if (
-    current.activeAccount?.accountHash === activeAccount.accountHash &&
-    current.sessionKey === sessionKey
+    current.activeAccount?.accountHash !== activeAccount.accountHash ||
+    current.sessionKey !== sessionKey ||
+    !sessionScopeIsCurrent(store.getState(), sessionScope)
   ) {
-    setSessionVaultKey(activeAccount.accountHash, sessionKey, dek);
+    dek.fill(0);
+    const error = new Error(sessionError);
+    error.code = 'SESSION_CHANGED';
+    throw error;
   }
+  setSessionVaultKey(activeAccount.accountHash, sessionKey, dek);
   return {password, dek};
 };
 

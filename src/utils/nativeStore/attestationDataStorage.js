@@ -5,6 +5,57 @@ import { ATTESTATION_DATA_STORAGE_INTERNAL_KEY } from '../../../env/index'
 let isWriting = false;
 const writeQueue = [];
 
+const backupPathFor = finalFilePath => `${finalFilePath}.bak`;
+
+// Replaces the live file with the temp file so that a crash at any step
+// leaves a readable copy: the live file, or its backup (old data) until the
+// new file is in place. iOS cannot move onto an existing file, so the live
+// file moves to the backup first; loadAttestationData reads the backup when
+// the live file is missing.
+const replaceWithBackup = async (tempFilePath, finalFilePath) => {
+  const backupFilePath = backupPathFor(finalFilePath);
+  const liveExists = await RNFS.exists(finalFilePath);
+  const backupExists = await RNFS.exists(backupFilePath);
+
+  if (!liveExists && backupExists) {
+    // A previous replace stopped after the live file moved away: the backup
+    // is the only copy. Put it back before anything else.
+    await RNFS.moveFile(backupFilePath, finalFilePath);
+  } else if (backupExists) {
+    await RNFS.unlink(backupFilePath);
+  }
+
+  const hasLive = await RNFS.exists(finalFilePath);
+  if (hasLive) await RNFS.moveFile(finalFilePath, backupFilePath);
+
+  try {
+    await RNFS.moveFile(tempFilePath, finalFilePath);
+  } catch (moveError) {
+    if (hasLive) {
+      try {
+        await RNFS.moveFile(backupFilePath, finalFilePath);
+      } catch (restoreError) {
+        // The backup stays; the reader uses it while the live file is missing.
+        console.warn('Failed to restore attestation data backup:', restoreError.message);
+      }
+    }
+    try {
+      await RNFS.unlink(tempFilePath);
+    } catch (cleanupError) {
+      console.warn('Failed to clean up temp file:', cleanupError);
+    }
+    throw moveError;
+  }
+
+  if (hasLive) {
+    try {
+      await RNFS.unlink(backupFilePath);
+    } catch (cleanupError) {
+      // A stale backup is harmless: the live file exists and wins.
+    }
+  }
+};
+
 const processWriteQueue = async () => {
   if (isWriting || writeQueue.length === 0) return;
   
@@ -19,29 +70,7 @@ const processWriteQueue = async () => {
     const finalFilePath = RNFS.DocumentDirectoryPath + `/${ATTESTATION_DATA_STORAGE_INTERNAL_KEY}.txt`;
     
     await RNFS.writeFile(tempFilePath, jsonString, 'utf8');
-    
-    // Atomic move operation - this prevents corruption from incomplete writes
-    try {
-      // On iOS, we need to remove the target file first if it exists
-      try {
-        await RNFS.unlink(finalFilePath);
-      } catch (unlinkError) {
-        // File might not exist, that's okay - only warn on actual errors
-        if (unlinkError.code && unlinkError.code !== 'ENOENT') {
-          console.warn('Warning: Could not remove existing file:', unlinkError.message);
-        }
-      }
-      
-      await RNFS.moveFile(tempFilePath, finalFilePath);
-    } catch (moveError) {
-      // If move fails, clean up temp file
-      try {
-        await RNFS.unlink(tempFilePath);
-      } catch (cleanupError) {
-        console.warn('Failed to clean up temp file:', cleanupError);
-      }
-      throw moveError;
-    }
+    await replaceWithBackup(tempFilePath, finalFilePath);
     
     resolve(data);
   } catch (error) {
@@ -63,9 +92,22 @@ export const storeAttestationData = (data) => {
   });
 };
 
+const readAttestationFile = async () => {
+  const finalFilePath = RNFS.DocumentDirectoryPath + `/${ATTESTATION_DATA_STORAGE_INTERNAL_KEY}.txt`;
+  try {
+    return await RNFS.readFile(finalFilePath, "utf8");
+  } catch (err) {
+    // A replace stopped after the live file moved to its backup.
+    if (err.code === 'ENOENT' && await RNFS.exists(backupPathFor(finalFilePath))) {
+      return RNFS.readFile(backupPathFor(finalFilePath), "utf8");
+    }
+    throw err;
+  }
+};
+
 export const loadAttestationData = () => {
   return new Promise((resolve, reject) => {
-    RNFS.readFile(RNFS.DocumentDirectoryPath + `/${ATTESTATION_DATA_STORAGE_INTERNAL_KEY}.txt`, "utf8")
+    readAttestationFile()
       .then(res => {
         if (!res || res.trim() === '') {
           resolve({});
@@ -103,9 +145,14 @@ export const loadAttestationData = () => {
 };
 
 export const clearAllAttestationData = () => {
+  const finalFilePath = RNFS.DocumentDirectoryPath + `/${ATTESTATION_DATA_STORAGE_INTERNAL_KEY}.txt`;
   return new Promise((resolve, reject) => {
-    RNFS.unlink(RNFS.DocumentDirectoryPath + `/${ATTESTATION_DATA_STORAGE_INTERNAL_KEY}.txt`)
-      .then(() => {
+    RNFS.unlink(finalFilePath)
+      .then(async () => {
+        // Remove a backup too, or the reader would bring the old data back.
+        if (await RNFS.exists(backupPathFor(finalFilePath))) {
+          await RNFS.unlink(backupPathFor(finalFilePath));
+        }
         resolve();
       })
       .catch(err => reject(err));

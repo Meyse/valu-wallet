@@ -178,6 +178,14 @@ describe('cloud backup file', () => {
     await expect(openBackupFile(file, 'backup pasS')).rejects.toMatchObject({ code: VAULT_ERROR.WRONG_PASSWORD });
   }, 30000);
 
+  it('refuses to write a file that the reader would reject', async () => {
+    await expect(sealBackupFile({
+      password: 'backup pass', plaintext: 'x'.repeat(64 * 1024),
+      backupId: 'ffeeddccbbaa99887766554433221100', createdAt: '2026-11-26T12:00:00Z',
+    })).rejects.toMatchObject({ code: VAULT_ERROR.FORMAT });
+    expect(kdfCalls).toBe(0);
+  });
+
   it('fails the tag check when one header byte changes', async () => {
     const file = await sealed();
     const headerJson = Buffer.from(file.header.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
@@ -199,6 +207,8 @@ describe('cloud backup file', () => {
       [{ ...file, header: headerOf({ ...header, kdf: { ...header.kdf, m: 1 << 30 } }) }, VAULT_ERROR.PARAMS],
       [{ ...file, header: headerOf({ ...header, kdf: { id: 'pbkdf2-sha256', iter: 10, salt: header.kdf.salt } }) }, VAULT_ERROR.PARAMS],
       [{ ...file, ct: 'AAAA' }, VAULT_ERROR.FORMAT],
+      [{ ...file, ct: 'A'.repeat(100000) }, VAULT_ERROR.FORMAT],
+      [{ ...file, header: 'A'.repeat(6000) }, VAULT_ERROR.FORMAT],
     ];
     for (const [bad, code] of cases) {
       await expect(openBackupFile(bad, 'backup pass')).rejects.toMatchObject({ code });

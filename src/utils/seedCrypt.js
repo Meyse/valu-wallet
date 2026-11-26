@@ -27,6 +27,16 @@ export const decryptkey = (cipherKey, string) => {
   }
 }
 
+// Legacy AES-256-GCM only (no CTR fallback). A result proves the password:
+// the GCM tag checked. Returns false otherwise.
+export const decryptkeyAuthenticated = (cipherKey, string) => {
+  try {
+    return aes256.decrypt(cipherKey, string);
+  } catch (error) {
+    return false;
+  }
+}
+
 export const legacy_decryptkey = (cipherKey, string) => {
   const decryptedKey = aes256.legacy_decrypt(cipherKey, string);
 

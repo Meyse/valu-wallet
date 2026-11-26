@@ -1,6 +1,7 @@
 import {
   encryptkey,
   decryptkey,
+  decryptkeyAuthenticated,
   vaultDecrypt,
   vaultEncrypt,
 } from '../seedCrypt'
@@ -15,6 +16,7 @@ import {
 import { isVaultError, VAULT_ERROR } from '../crypto/vaultErrors'
 import { Buffer } from 'buffer'
 import { setSessionVaultKey } from '../vault/vaultSession'
+import { convertLegacyAttestationRecords } from '../vault/attestationVaultMigration'
 import { passwordFailsRule } from '../auth/passwordRule'
 
 import { hashAccountId } from "../crypto/hash";
@@ -521,6 +523,11 @@ const resetUserPwdTransaction = async (
       throw vaultError;
     }
   }
+  if (vaultDek != null) {
+    // Attestations live outside the journal. Convert any legacy record now,
+    // while the old password still reads it (best effort, as on unlock).
+    await convertLegacyAttestationRecords(accountHash, oldPwd, vaultDek);
+  }
   const readKey = {password: oldPwd, dek: vaultDek};
   const writeKey = vaultDek != null ? {dek: vaultDek} : {password: newPwd};
 
@@ -931,7 +938,14 @@ export const VAULT_MIGRATION_ERROR = Object.freeze({
   UNREADABLE: 'VAULT_MIGRATION_UNREADABLE',
   MIXED: 'VAULT_MIGRATION_MIXED_RECORDS',
   VERIFY: 'VAULT_MIGRATION_VERIFY_FAILED',
+  NOT_PROVEN: 'VAULT_MIGRATION_PASSWORD_NOT_PROVEN',
+  TOO_LARGE: 'VAULT_MIGRATION_TOO_LARGE',
 });
+
+// The journal holds the old and new copy of all three roots in one storage
+// row. Android AsyncStorage cannot read a row near its 2 MB cursor window, and
+// SecureStorage adds encryption overhead, so stay far below it.
+const VAULT_MIGRATION_JOURNAL_MAX_CHARS = 512 * 1024;
 
 const migrationError = (code, message) => {
   const error = new Error(message);
@@ -940,8 +954,10 @@ const migrationError = (code, message) => {
 };
 
 // Decrypts every value of a legacy record with the password. Any value that
-// does not decrypt aborts the migration; nothing is written.
-const decryptLegacyRecord = (record, password, recordName) => {
+// does not decrypt aborts the migration; nothing is written. `proof` records
+// whether one value passed the GCM tag check: the old CTR reader accepts a
+// wrong password when the output happens to look like text.
+const decryptLegacyRecord = (record, password, recordName, proof) => {
   const plain = {};
   for (const key of Object.keys(record)) {
     const value = record[key];
@@ -952,7 +968,12 @@ const decryptLegacyRecord = (record, password, recordName) => {
     if (isV2Record(value)) {
       throw migrationError(VAULT_MIGRATION_ERROR.MIXED, `A ${recordName} value is already v2`);
     }
-    const decrypted = decryptkey(password, value);
+    let decrypted = decryptkeyAuthenticated(password, value);
+    if (decrypted !== false) {
+      proof.authenticated = true;
+    } else {
+      decrypted = decryptkey(password, value);
+    }
     if (decrypted === false) {
       throw migrationError(VAULT_MIGRATION_ERROR.UNREADABLE, `A ${recordName} value does not decrypt`);
     }
@@ -1070,15 +1091,21 @@ const migrateUserVaultTransaction = async (accountHash, password) => {
   const serviceRecord = parseStoredObject(before[SERVICE_STORAGE_INTERNAL_KEY], 'service data');
 
   // 1. Read every legacy record with the password. Plaintext stays in memory.
+  const proof = {authenticated: false};
   const plain = {
-    keys: decryptLegacyRecord(user.encryptedKeys || {}, password, 'account key'),
+    keys: decryptLegacyRecord(user.encryptedKeys || {}, password, 'account key', proof),
     personal: personalRecord[accountHash] != null
-      ? decryptLegacyRecord(personalRecord[accountHash], password, 'personal data')
+      ? decryptLegacyRecord(personalRecord[accountHash], password, 'personal data', proof)
       : {},
     service: serviceRecord[accountHash] != null
-      ? decryptLegacyRecord(serviceRecord[accountHash], password, 'service data')
+      ? decryptLegacyRecord(serviceRecord[accountHash], password, 'service data', proof)
       : {},
   };
+  // Migrate only when the password is proven by a GCM tag. A wallet with only
+  // CTR-era records (or none) stays legacy, which still opens as before.
+  if (!proof.authenticated) {
+    throw migrationError(VAULT_MIGRATION_ERROR.NOT_PROVEN, 'No authenticated legacy record');
+  }
 
   // 2. New vault key, wrapped by a new password key; every record under it.
   const {vault, dek} = await createVault(password, accountHash);
@@ -1117,11 +1144,15 @@ const migrateUserVaultTransaction = async (accountHash, password) => {
       before,
       after,
     };
+    const journalString = JSON.stringify(journal);
+    if (journalString.length > VAULT_MIGRATION_JOURNAL_MAX_CHARS) {
+      throw migrationError(VAULT_MIGRATION_ERROR.TOO_LARGE, 'Migration journal too large');
+    }
 
     try {
       await SecureStorage.setItem(
         PASSWORD_MIGRATION_STORAGE_INTERNAL_KEY,
-        JSON.stringify(journal),
+        journalString,
       );
       await reachStage('prepared');
       let appliedRoots = 0;

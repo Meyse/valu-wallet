@@ -212,9 +212,14 @@ export const sealBackupFile = async ({ password, plaintext, backupId, createdAt,
     }),
     'utf8',
   );
+  const plaintextBytes = Buffer.from(plaintext, 'utf8');
+  // Never write a file that parseBackupFile would reject.
+  if (headerBytes.length > HEADER_MAX_BYTES || plaintextBytes.length + TAG_BYTES > BACKUP_CT_MAX_BYTES) {
+    throw new VaultError(VAULT_ERROR.FORMAT, 'Backup content is too large');
+  }
   const key = await deriveKey(password, kdf);
   try {
-    const ct = gcmEncrypt(key, nonce, Buffer.from(plaintext, 'utf8'), headerBytes);
+    const ct = gcmEncrypt(key, nonce, plaintextBytes, headerBytes);
     return { format: BACKUP_FORMAT, header: toBase64Url(headerBytes), ct: ct.toString('base64') };
   } finally {
     key.fill(0);
@@ -226,6 +231,14 @@ export const sealBackupFile = async ({ password, plaintext, backupId, createdAt,
 export const parseBackupFile = file => {
   if (file == null || typeof file !== 'object' || file.format !== BACKUP_FORMAT) {
     throw new VaultError(VAULT_ERROR.FORMAT, 'Not a Valu Wallet backup file');
+  }
+  // Check the encoded lengths before decoding, so a large file is never
+  // decoded into memory.
+  if (
+    typeof file.header !== 'string' || file.header.length > Math.ceil(HEADER_MAX_BYTES * 4 / 3) ||
+    typeof file.ct !== 'string' || file.ct.length > Math.ceil(BACKUP_CT_MAX_BYTES / 3) * 4
+  ) {
+    throw new VaultError(VAULT_ERROR.FORMAT, 'Invalid backup file size');
   }
   const headerBytes = fromBase64Url(file.header, 'backup header');
   if (headerBytes.length === 0 || headerBytes.length > HEADER_MAX_BYTES) {

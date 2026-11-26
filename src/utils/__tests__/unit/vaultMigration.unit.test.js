@@ -53,6 +53,8 @@ import store from '../../../store';
 import { authenticateUser, signIntoAuthenticatedAccount } from '../../../actions/actionCreators';
 import { validateLogin } from '../../../actions/actions/UserData';
 import { storeLegacyUser } from '../../../tests/helpers/legacyUserFixture';
+import * as attestationStorage from '../../nativeStore/attestationDataStorage';
+import { convertLegacyAttestationRecords } from '../../vault/attestationVaultMigration';
 
 const NAME = 'Vault fixture';
 const HASH = hashAccountId(NAME);
@@ -240,6 +242,35 @@ describe('migration of a legacy wallet', () => {
   });
 });
 
+describe('migration guards', () => {
+  it('keeps a wallet with only CTR-era records legacy (no tag proves the password)', async () => {
+    await AsyncStorage.clear();
+    await storeLegacyUser({ userName: NAME, password: PW, seeds: {} });
+    const record = parse(await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY));
+    record.users[0].encryptedKeys.electrum = await aes256.legacy_encrypt(PW, 'legacy ctr seed words');
+    await SecureStorage.setItem(USER_DATA_STORAGE_INTERNAL_KEY, JSON.stringify(record));
+    const before = await readAll();
+
+    await expect(migrateUserVault(HASH, PW))
+      .rejects.toMatchObject({ code: VAULT_MIGRATION_ERROR.NOT_PROVEN });
+    expect(await readAll()).toEqual(before);
+    expect((await unlockUserVault(PW, NAME, false)).seeds.electrum).toBe('legacy ctr seed words');
+  });
+
+  it('writes nothing when the journal would be too large for one storage row', async () => {
+    const service = parse(await SecureStorage.getItem(SERVICE_STORAGE_INTERNAL_KEY));
+    service[HASH].big = await encryptkey(PW, 'x'.repeat(400 * 1024));
+    await SecureStorage.setItem(SERVICE_STORAGE_INTERNAL_KEY, JSON.stringify(service));
+    const before = await readAll();
+    const calls = instrumentWrites();
+
+    await expect(migrateUserVault(HASH, PW))
+      .rejects.toMatchObject({ code: VAULT_MIGRATION_ERROR.TOO_LARGE });
+    expect(calls).toEqual([]);
+    expect(await readAll()).toEqual(before);
+  });
+});
+
 describe('a storage fault at each write of the migration', () => {
   // Count the mutating storage calls of one clean migration.
   const countWrites = async () => {
@@ -381,6 +412,48 @@ describe('unlock (password and biometric login share validateLogin)', () => {
   });
 });
 
+describe('attestation records', () => {
+  const ATTEST = JSON.stringify({ claim: 'fixture attestation' });
+
+  const fakeAttestationFile = async records => {
+    let file = { [HASH]: records, [OTHER_HASH]: { kept: 'other account value' } };
+    jest.spyOn(attestationStorage, 'loadAttestationData').mockImplementation(async () => file);
+    jest.spyOn(attestationStorage, 'storeAttestationDataForUser').mockImplementation(async (data, hash) => {
+      file = { ...file, [hash]: data };
+      return data;
+    });
+    return () => file;
+  };
+
+  it('converts legacy records to the vault key and leaves the rest', async () => {
+    const { dek } = await migrateUserVault(HASH, PW);
+    const otherPasswordRecord = await encryptkey('another password', ATTEST);
+    const readFile = await fakeAttestationFile({
+      attestations: await encryptkey(PW, ATTEST),
+      unreadable: otherPasswordRecord,
+      attestations_provisioned: null,
+    });
+
+    await expect(convertLegacyAttestationRecords(HASH, PW, dek)).resolves.toBe(true);
+    const after = readFile();
+    expect(envelope.decryptRecord(dek, after[HASH].attestations)).toBe(ATTEST);
+    expect(after[HASH].unreadable).toBe(otherPasswordRecord);
+    expect(after[OTHER_HASH]).toEqual({ kept: 'other account value' });
+  });
+
+  it('converts legacy records with the old password before a v2 password change', async () => {
+    const { dek } = await migrateUserVault(HASH, PW);
+    const readFile = await fakeAttestationFile({ attestations: await encryptkey(PW, ATTEST) });
+    const user = parse(await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY)).users
+      .find(u => u.accountHash === HASH);
+    const sessionKey = await authBox.initSession(PW);
+    store.dispatch(authenticateUser({ ...user, vaultVersion: 2 }, sessionKey));
+
+    await expect(resetUserPwd(HASH, NEW_PW, PW)).resolves.not.toBe(false);
+    expect(envelope.decryptRecord(dek, readFile()[HASH].attestations)).toBe(ATTEST);
+  });
+});
+
 describe('session vault key', () => {
   it('is bound to the account and session key, and sign-out wipes it', () => {
     const dek = Buffer.alloc(32, 7);
@@ -391,6 +464,25 @@ describe('session vault key', () => {
     clearSessionVaultKey();
     expect(getSessionVaultKey('acct', 'session-1')).toBeNull();
     expect(dek.equals(Buffer.alloc(32, 7))).toBe(true);
+  });
+
+  it('never returns the key when the session changes during the unwrap', async () => {
+    await migrateUserVault(HASH, PW);
+    const user = parse(await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY)).users
+      .find(u => u.accountHash === HASH);
+    const sessionKey = await authBox.initSession(PW);
+    store.dispatch(authenticateUser({ ...user, vaultVersion: 2 }, sessionKey));
+    clearSessionVaultKey();
+    const realUnwrap = envelope.unwrapVaultKey;
+    jest.spyOn(envelope, 'unwrapVaultKey').mockImplementation(async (...args) => {
+      const dek = await realUnwrap(...args);
+      // Sign-out or another login while the KDF ran.
+      store.dispatch(authenticateUser({ accountHash: 'someone-else', seeds: {}, keys: {} }, 'other-session'));
+      return dek;
+    });
+
+    await expect(authBox.requestVaultKey()).rejects.toMatchObject({ code: 'SESSION_CHANGED' });
+    expect(getSessionVaultKey(HASH, sessionKey)).toBeNull();
   });
 
   it('unwraps the stored vault again when the cache is empty', async () => {
