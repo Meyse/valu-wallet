@@ -4,6 +4,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useDispatch, useStore} from 'react-redux';
+import {CommonActions} from '@react-navigation/native';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -57,6 +58,17 @@ export default function Creating({navigation}) {
     [navigation],
   );
 
+  // The earlier steps hold their own copies of the phrase, the key and the password in their
+  // component state. Once the wallet is saved, remove those routes and keep this one (same key,
+  // so it stays mounted and the creation does not start again).
+  const dropSecrets = () => {
+    ob.reset();
+    navigation.dispatch(state => {
+      const here = state.routes[state.index];
+      return CommonActions.reset({...state, routes: [here], index: 0});
+    });
+  };
+
   const create = async () => {
     if (ob.creationStarted.current) return;
     ob.creationStarted.current = true;
@@ -80,7 +92,7 @@ export default function Creating({navigation}) {
       });
       await recordWalletMade(hashAccountId(WALLET_PROFILE_NAME), ob.path === 'import' ? 'imported' : 'created');
       // The phrase and the password are encrypted and stored now: drop the plain copies.
-      ob.reset();
+      dropSecrets();
       setPhase('ready');
     } catch (e) {
       ob.creationStarted.current = false;
@@ -90,7 +102,7 @@ export default function Creating({navigation}) {
       // The wallet is saved (keys and encrypted seed are stored), but a later step failed: the
       // starting coins or the sign-in. Making it again would be a duplicate. Drop the plain phrase
       // and password at once: the user opens the wallet on the unlock screen, with a fresh unlock.
-      if (made) ob.reset();
+      if (made) dropSecrets();
       setPhase(made ? 'saved' : 'error');
     }
   };
