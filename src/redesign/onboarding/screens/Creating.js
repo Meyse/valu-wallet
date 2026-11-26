@@ -12,12 +12,13 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import {FadeView, LogoTile, useBottomGap, useColumnWidth} from '../../components/Layout';
+import {ErrorText, FadeView, LogoTile, useBottomGap, useColumnWidth} from '../../components/Layout';
 import Sheet from '../../components/Sheet';
 import Icon from '../../components/Icon';
 import ValuButton, {TextLink} from '../../components/ValuButton';
 import {colors, type} from '../../theme/tokens';
 import {createProfileFromSeed} from '../../../utils/profile/createProfileFromSeed';
+import {initializeAccountData} from '../../../actions/actions/account/dispatchers/account';
 import {hashAccountId} from '../../../utils/crypto/hash';
 import {setHoldOnboarding} from '../../state/redesignState';
 import {recordWalletMade} from '../../state/welcomeState';
@@ -44,7 +45,10 @@ export default function Creating({navigation}) {
   const column = useColumnWidth();
   const bottomGap = useBottomGap();
   const {height} = useWindowDimensions();
-  const [phase, setPhase] = useState('creating'); // 'creating' | 'ready' | 'error'
+  // 'creating' | 'ready' | 'error' (no wallet saved) | 'saved' (wallet saved, but it did not open)
+  const [phase, setPhase] = useState('creating');
+  const [reopenError, setReopenError] = useState(null);
+  const reopening = useRef(false);
   const leaving = useRef(false);
 
   // No way back while the wallet is being made.
@@ -84,14 +88,37 @@ export default function Creating({navigation}) {
       const made = store
         .getState()
         .authentication.accounts.some(a => a.accountHash === hashAccountId(WALLET_PROFILE_NAME));
-      if (made) {
-        // The wallet exists but did not open: let the returning-user screen unlock it.
-        leaving.current = true;
-        setHoldOnboarding(false);
-        return;
-      }
-      setPhase('error');
+      // The wallet is saved (keys and encrypted seed are stored), but a later step failed: the
+      // starting coins or the sign-in. Making it again would be a duplicate; the user can open it.
+      setPhase(made ? 'saved' : 'error');
     }
+  };
+
+  // Opens the saved wallet with the password of this session: the same sign-in call as the unlock
+  // screen. No key, seed or stored data changes.
+  const reopen = async () => {
+    if (reopening.current) return;
+    reopening.current = true;
+    setReopenError(null);
+    try {
+      const account = store
+        .getState()
+        .authentication.accounts.find(a => a.accountHash === hashAccountId(WALLET_PROFILE_NAME));
+      await initializeAccountData(account, ob.password, false, undefined, {alertOnFail: false});
+      await recordWalletMade(hashAccountId(WALLET_PROFILE_NAME), ob.path === 'import' ? 'imported' : 'created');
+      setPhase('ready');
+    } catch (e) {
+      setReopenError('The wallet did not open. Try again, or unlock it with your password.');
+    } finally {
+      reopening.current = false;
+    }
+  };
+
+  // The returning-user screen: the saved wallet opens there with the password.
+  const toUnlock = () => {
+    leaving.current = true;
+    ob.reset();
+    setHoldOnboarding(false);
   };
 
   useEffect(() => {
@@ -135,8 +162,27 @@ export default function Creating({navigation}) {
               <Text style={[type.bodyLarge, styles.text]}>Something went wrong. Try again.</Text>
             </View>
           ) : null}
+          {phase === 'saved' ? (
+            <View style={styles.copy}>
+              <Text style={[type.title, styles.text]} accessibilityRole="header">
+                Wallet saved
+              </Text>
+              <Text style={[type.bodyLarge, styles.text]}>
+                Your wallet is saved on this phone, but it did not open.
+              </Text>
+              <ErrorText>{reopenError}</ErrorText>
+            </View>
+          ) : null}
         </View>
       </View>
+      {phase === 'saved' ? (
+        <View style={[styles.actions, {paddingBottom: bottomGap}]}>
+          <View style={{width: column, gap: 6}}>
+            <ValuButton label="Open wallet" onPress={reopen} testID="creating-reopen" />
+            <TextLink label="Unlock with password" onPress={toUnlock} testID="creating-unlock" />
+          </View>
+        </View>
+      ) : null}
       {phase === 'error' ? (
         <View style={[styles.actions, {paddingBottom: bottomGap}]}>
           <View style={{width: column, gap: 6}}>

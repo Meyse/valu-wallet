@@ -23,7 +23,7 @@ const TAB_NAMES = ['Home', 'Credentials', 'Money', 'Agents'];
 
 const iosOptions = name => ({
   title: name,
-  tabBarIcon: ({focused}) => ({type: 'sfSymbol', name: focused ? TAB_ICONS[name].sfSymbolOn : TAB_ICONS[name].sfSymbol}),
+  tabBarIcon: () => ({type: 'image', source: TAB_ICONS[name].image}),
 });
 
 function Tabs() {

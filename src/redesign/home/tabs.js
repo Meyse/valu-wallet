@@ -1,11 +1,12 @@
 // The four tabs (Max's decision): Home, Credentials, Money, Agents.
-// Android draws the Paper icons. iOS uses SF Symbols, because the system Liquid Glass bar
-// takes SF Symbols or bitmap images, not SVG.
+// Android draws the Paper SVG icons. The iOS Liquid Glass bar takes SF Symbols or bitmap images,
+// not SVG: it gets the same Paper icons as PNGs (assets/tabs, rendered from the SVGs in Icon.js),
+// tinted by the bar.
 export const TAB_ICONS = {
-  Home: {icon: 'tabHome', activeAndroid: 'tabHomeActiveAndroid', sfSymbol: 'house', sfSymbolOn: 'house.fill'},
-  Credentials: {icon: 'tabCredentials', sfSymbol: 'person.text.rectangle', sfSymbolOn: 'person.text.rectangle.fill'},
-  Money: {icon: 'tabMoney', sfSymbol: 'banknote', sfSymbolOn: 'banknote.fill'},
-  Agents: {icon: 'tabAgents', sfSymbol: 'sparkles', sfSymbolOn: 'sparkles'},
+  Home: {icon: 'tabHome', activeAndroid: 'tabHomeActiveAndroid', image: require('../assets/tabs/tabHome.png')},
+  Credentials: {icon: 'tabCredentials', image: require('../assets/tabs/tabCredentials.png')},
+  Money: {icon: 'tabMoney', image: require('../assets/tabs/tabMoney.png')},
+  Agents: {icon: 'tabAgents', image: require('../assets/tabs/tabAgents.png')},
 };
 
 export const PLACEHOLDERS = {

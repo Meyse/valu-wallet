@@ -6,7 +6,7 @@ import Icon from '../../components/Icon';
 import {ErrorText} from '../../components/Layout';
 import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
 import {useOnboarding} from '../OnboardingContext';
-import {biometryName} from '../../logic/biometry';
+import {biometryIcon, biometryName} from '../../logic/biometry';
 
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -38,7 +38,7 @@ export default function UseFaceId({navigation}) {
       onBack={() => navigation.goBack()}
       done={steps.done}
       next={steps.next}
-      icon={<Icon name="faceId" />}
+      icon={<Icon name={biometryIcon(ob.biometry)} />}
       title={`Use ${name}`}
       body={
         isFace
