@@ -23,6 +23,13 @@ import Sheet, {BackdropSourceContext} from '../components/Sheet';
 import {formatCrypto, formatFiat, rateFor, summarizeBalances} from '../logic/balances';
 import {dismissWelcome, readWelcome, timeAgo} from '../state/welcomeState';
 import {backupPrompt, markFundsSheetShown, readBackup} from '../state/backupState';
+import {
+  WEAK_PASSWORD_PROMPT_ENABLED,
+  dismissWeakPrompt,
+  readDebugWeakPrompt,
+  readWeakPromptDismissedAt,
+  shouldShowWeakPrompt,
+} from '../state/weakPasswordPrompt';
 import {colors, type} from '../theme/tokens';
 import {TAB_BAR_CLEARANCE} from './tabBarMetrics';
 import {DEMO_ACTIVITY, DEMO_CREDENTIAL, DEMO_HOME, DemoIcon, DemoTile} from './demoHome';
@@ -115,9 +122,11 @@ export default function HomeScreen({navigation}) {
   const [backup, setBackup] = useState(null);
   const [fundsSheet, setFundsSheet] = useState(false);
   const [demoInfo, setDemoInfo] = useState(false);
+  const [weakPrompt, setWeakPrompt] = useState(false);
   const root = useRef(null);
 
   const accountHash = useSelector(state => state.authentication.activeAccount?.accountHash);
+  const passwordFails = useSelector(state => state.authentication.activeAccount?.passwordFailsRule);
   const coins = useObjectSelector(state => state.coins.activeCoinsForUser);
   const balances = useObjectSelector(state => extractLedgerData(state, 'balances', API_GET_BALANCES));
   // All sub-wallets, not only the ones that started: a sub-wallet that failed has no balance, and
@@ -180,6 +189,34 @@ export default function HomeScreen({navigation}) {
   const openBackup = () => {
     setFundsSheet(false);
     navigation.navigate('RedesignBackup');
+  };
+
+  // Weak password prompt (Paper p-6-0): off for users (WEAK_PASSWORD_PROMPT_ENABLED). It waits for
+  // the funds sheet: only one sheet at a time.
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      if (!accountHash) return undefined;
+      (async () => {
+        // Debug builds: the Settings switch shows it on each visit, also for a strong password (a
+        // redesign wallet cannot have a weak one), to see the sheet.
+        const forced = typeof __DEV__ !== 'undefined' && __DEV__ && (await readDebugWeakPrompt());
+        const dismissedAt = forced ? null : await readWeakPromptDismissedAt(accountHash);
+        const show = shouldShowWeakPrompt({
+          enabled: WEAK_PASSWORD_PROMPT_ENABLED || forced,
+          fails: forced || passwordFails,
+          dismissedAt,
+        });
+        if (alive && show) setWeakPrompt(true);
+      })();
+      return () => {
+        alive = false;
+      };
+    }, [accountHash, passwordFails]),
+  );
+  const closeWeakPrompt = () => {
+    setWeakPrompt(false);
+    dismissWeakPrompt(accountHash);
   };
 
   const backupCard = prompt === 'card' && !fundsSheet;
@@ -344,6 +381,19 @@ export default function HomeScreen({navigation}) {
         buttons={[
           {label: 'Back up now', variant: 'accent', onPress: openBackup, testID: 'home-funds-backup'},
           {label: 'Later', onPress: () => setFundsSheet(false), testID: 'home-funds-later'},
+        ]}
+      />
+      <Sheet
+        visible={weakPrompt && !fundsSheet}
+        onClose={closeWeakPrompt}
+        icon={<Icon name="shieldAlert" />}
+        title="Make your password stronger"
+        body="Your password is easy to guess. Change it to protect your wallet."
+        testID="home-weak-password-sheet"
+        buttons={[
+          // No change-password flow in the redesign yet: the prompt is off for users until it exists.
+          {label: 'Change password', variant: 'accent', onPress: closeWeakPrompt, testID: 'home-weak-password-change'},
+          {label: 'Not now', onPress: closeWeakPrompt, testID: 'home-weak-password-later'},
         ]}
       />
       <Sheet

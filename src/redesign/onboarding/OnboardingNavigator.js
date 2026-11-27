@@ -19,6 +19,7 @@ import Welcome from './screens/Welcome';
 import ImportPhrase from './screens/ImportPhrase';
 import ImportKey from './screens/ImportKey';
 import ImportNfcPassword from './screens/ImportNfcPassword';
+import ImportCloud from './screens/ImportCloud';
 import ScanQr from './screens/ScanQr';
 import CreatePassword from './screens/CreatePassword';
 import UseFaceId from './screens/UseFaceId';
@@ -32,6 +33,7 @@ export const SCENE_FOR = {
   [ROUTES.importPhrase]: SCENES.dense,
   [ROUTES.importKey]: SCENES.dense,
   [ROUTES.importNfcPassword]: SCENES.dense,
+  [ROUTES.importCloud]: SCENES.dense,
   [ROUTES.password]: SCENES.dense,
   [ROUTES.faceId]: SCENES.icon,
   [ROUTES.creating]: SCENES.hero,
@@ -102,6 +104,7 @@ function Screens({background, onRoute}) {
       <Stack.Screen name={ROUTES.importPhrase} component={ImportPhrase} />
       <Stack.Screen name={ROUTES.importKey} component={ImportKey} />
       <Stack.Screen name={ROUTES.importNfcPassword} component={ImportNfcPassword} />
+      <Stack.Screen name={ROUTES.importCloud} component={ImportCloud} />
       <Stack.Screen name={ROUTES.scanQr} component={ScanQr} />
       <Stack.Screen name={ROUTES.password} component={CreatePassword} />
       <Stack.Screen name={ROUTES.faceId} component={UseFaceId} />

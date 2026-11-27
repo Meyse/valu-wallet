@@ -15,6 +15,10 @@ export function OnboardingProvider({children, background}) {
   // from the chip also gives the shielded (Z) seed (as the old NFC import).
   const [nfcBackup, setNfcBackup] = useState(null);
   const [seedHasZ, setSeedHasZ] = useState(false);
+  // Cloud import: the backup file found in the cloud until its password opens it, then the id of
+  // the opened backup. Creating records that id, so a later backup replaces the same file.
+  const [cloudBackup, setCloudBackup] = useState(null);
+  const [cloudBackupId, setCloudBackupId] = useState(null);
   const creationStarted = useRef(false);
   // Set when a lane goes back to Welcome: Welcome opens the import sheet again.
   const sheetReturn = useRef(false);
@@ -37,6 +41,10 @@ export function OnboardingProvider({children, background}) {
       setNfcBackup,
       seedHasZ,
       setSeedHasZ,
+      cloudBackup,
+      setCloudBackup,
+      cloudBackupId,
+      setCloudBackupId,
       creationStarted,
       sheetReturn,
       background,
@@ -46,10 +54,24 @@ export function OnboardingProvider({children, background}) {
         setUseBiometrics(false);
         setNfcBackup(null);
         setSeedHasZ(false);
+        setCloudBackup(null);
+        setCloudBackupId(null);
         creationStarted.current = false;
       },
     }),
-    [path, secret, password, useBiometrics, testProfile, biometry, nfcBackup, seedHasZ, background],
+    [
+      path,
+      secret,
+      password,
+      useBiometrics,
+      testProfile,
+      biometry,
+      nfcBackup,
+      seedHasZ,
+      cloudBackup,
+      cloudBackupId,
+      background,
+    ],
   );
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;

@@ -488,12 +488,13 @@ export function Heading({title, body, gap = 8, icon}) {
   );
 }
 
-// App icon tile: 96 x 96, radius 32, #3D3D3D, Valu logo, in a 112 x 112 frame.
-export function LogoTile({tileStyle, onPress}) {
+// App icon tile: 96 x 96, radius 32, #3D3D3D, Valu logo, in a 112 x 112 frame. Backup iCloud 06
+// (Saving) uses the same tile with the cloud icon.
+export function LogoTile({tileStyle, onPress, icon = 'valuLogo'}) {
   const inner = (
     <View style={styles.logoFrame}>
       <View style={[styles.tile, tileStyle]}>
-        <Icon name="valuLogo" />
+        <Icon name={icon} />
       </View>
     </View>
   );

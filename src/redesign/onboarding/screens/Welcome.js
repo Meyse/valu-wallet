@@ -3,7 +3,7 @@
 // Copy: the team artboard "Onboarding 02 - Take control" (Paper p-1-0), with the apostrophe in
 // "Let's" added (Max, 2026-11-26).
 import React, {useEffect, useRef, useState} from 'react';
-import {Platform, StyleSheet, Text, View} from 'react-native';
+import {Linking, Platform, StyleSheet, Text, View} from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -22,11 +22,33 @@ import ImportWaySheet from '../import/ImportWaySheet';
 import {useCameraGate} from '../import/cameraGate';
 import {chipSeedHasZ, useNfcRead} from '../import/nfcImport';
 import {afterSecureScreens} from '../../components/useSecureScreen';
+import {cloudCopy, useCloudStore} from '../../cloud/useCloudStore';
+import {findLatestCloudBackup} from '../../../utils/cloudBackup/cloudBackup';
+import {cloudErrorKind} from '../../../utils/cloudBackup/cloudErrors';
+import {
+  DEBUG_STORE_MODES,
+  debugStoreLabel,
+  readDebugCloudStore,
+  setDebugCloudStore,
+} from '../../../utils/cloudBackup/debugCloudStore';
 
 const IS_ANDROID = Platform.OS === 'android';
 
 // A sheet must be gone before the next one (or the system NFC sheet) opens.
 const AFTER_SHEET_MS = 320;
+const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
+
+// The cloud sheets of the restore lane. 'none' (Paper "No backup in this iCloud") and 'off' are in
+// Paper; 'looking', 'unreachable', 'damaged' and 'update' are not (the report lists them).
+const cloudSheetContent = (kind, copy) =>
+  ({
+    looking: {title: copy.lookingTitle, body: copy.lookingBody},
+    off: {title: copy.offTitle, body: copy.offRestoreBody},
+    none: {title: copy.noBackupTitle, body: copy.noBackupBody},
+    unreachable: {title: copy.unreachableTitle, body: copy.unreachableBody},
+    damaged: {title: copy.damagedTitle, body: copy.damagedBody},
+    update: {title: copy.updateTitle, body: copy.updateBody},
+  })[kind] ?? null;
 
 let introPlayed = false;
 
@@ -42,6 +64,15 @@ export default function Welcome({navigation}) {
   const [testSheet, setTestSheet] = useState(false);
   const [waySheet, setWaySheet] = useState(false);
   const [nfcError, setNfcError] = useState(null);
+  const cloud = useCloudStore();
+  const copy = cloudCopy(cloud.store?.kind);
+  // null | 'looking' | 'off' | 'none' | 'unreachable' | 'damaged' | 'update'
+  const [cloudSheet, setCloudSheet] = useState(null);
+  // The last content stays while the sheet slides out.
+  const lastCloudSheet = useRef(null);
+  if (cloudSheet) lastCloudSheet.current = cloudSheet;
+  const look = useRef(0);
+  const [debugStore, setDebugStore] = useState(null);
   const taps = useRef(0);
   const later = useRef(null);
   const waitSecure = useRef(() => {});
@@ -116,7 +147,103 @@ export default function Welcome({navigation}) {
     ob.sheetReturn.current = true;
     clearTimeout(later.current);
     if (way === 'phrase') navigation.navigate(ROUTES.importPhrase);
+    else if (way === 'cloud') findBackup();
     else later.current = setTimeout(way === 'qr' ? camera.open : nfc.read, AFTER_SHEET_MS);
+  };
+
+  // Restore lane A: find the newest backup in the cloud (no password yet, no KDF), then ask for its
+  // password on Import iCloud 03. A fast answer goes on without the "Looking" sheet; a sheet opens
+  // only once the import sheet is gone.
+  const findBackup = async () => {
+    const mine = ++look.current;
+    const startedAt = Date.now();
+    const show = kind => {
+      clearTimeout(later.current);
+      const wait = Math.max(0, AFTER_SHEET_MS - (Date.now() - startedAt));
+      later.current = setTimeout(() => mine === look.current && setCloudSheet(kind), wait);
+    };
+    show('looking');
+    let result = null;
+    try {
+      const availability = await cloud.store?.isAvailable();
+      if (!availability?.ok) result = 'off';
+      else {
+        const found = await findLatestCloudBackup(cloud.store);
+        if (mine !== look.current) return;
+        clearTimeout(later.current);
+        ob.setCloudBackup({...found, kind: cloud.store.kind});
+        setCloudSheet(null);
+        navigation.navigate(ROUTES.importCloud);
+        return;
+      }
+    } catch (e) {
+      const kind = cloudErrorKind(e);
+      result =
+        kind === 'no-backup'
+          ? 'none'
+          : kind === 'off'
+            ? 'off'
+            : kind === 'update-app'
+              ? 'update'
+              : kind === 'damaged'
+                ? 'damaged'
+                : kind === 'cancelled'
+                  ? null
+                  : 'unreachable';
+    }
+    if (mine !== look.current) return;
+    if (result) show(result);
+    else {
+      clearTimeout(later.current);
+      setCloudSheet(null);
+    }
+  };
+
+  const closeCloudSheet = () => {
+    look.current += 1;
+    clearTimeout(later.current);
+    setCloudSheet(null);
+  };
+
+  const otherWay = () => {
+    closeCloudSheet();
+    later.current = setTimeout(() => setWaySheet(true), AFTER_SHEET_MS);
+  };
+
+  const cloudButtons = kind => {
+    const cancel = {label: 'Cancel', onPress: closeCloudSheet, testID: 'cloud-sheet-cancel'};
+    const different = {label: 'Choose a different way', variant: 'accent', onPress: otherWay, testID: 'cloud-sheet-other'};
+    if (kind === 'looking') return [cancel];
+    if (kind === 'off') {
+      return [
+        {
+          label: 'Open Settings',
+          variant: 'accent',
+          testID: 'cloud-sheet-settings',
+          onPress: () => {
+            closeCloudSheet();
+            Linking.openSettings().catch(() => {});
+          },
+        },
+        cancel,
+      ];
+    }
+    if (kind === 'none') return [different];
+    if (kind === 'unreachable') {
+      return [{label: 'Try again', variant: 'accent', onPress: findBackup, testID: 'cloud-sheet-retry'}, cancel];
+    }
+    return [different, cancel];
+  };
+
+  // Debug builds only: the cloud store switch, so a fresh install can restore from the fake store.
+  useEffect(() => {
+    if (DEV && testSheet) readDebugCloudStore().then(setDebugStore);
+  }, [testSheet]);
+  const nextDebugStore = async () => {
+    const next = DEBUG_STORE_MODES[(DEBUG_STORE_MODES.indexOf(debugStore) + 1) % DEBUG_STORE_MODES.length];
+    await setDebugCloudStore(next);
+    setDebugStore(next);
+    cloud.refresh();
   };
 
   // Hidden testnet switch, as on the old wallet intro screen (7 taps on the logo).
@@ -152,7 +279,21 @@ export default function Welcome({navigation}) {
           <TextLink label="Recover vault" onPress={() => start('import')} testID="welcome-import" />
         </View>
       </Animated.View>
-      <ImportWaySheet visible={waySheet} onClose={() => setWaySheet(false)} onChoose={choose} />
+      <ImportWaySheet
+        visible={waySheet}
+        onClose={() => setWaySheet(false)}
+        onChoose={choose}
+        cloud={cloud.mode === 'ready' || cloud.mode === 'off' ? {title: copy.restoreTile, body: copy.restoreTileBody} : null}
+      />
+      <Sheet
+        visible={cloudSheet != null}
+        onClose={closeCloudSheet}
+        icon={<Icon name="cloud48" />}
+        title={cloudSheetContent(lastCloudSheet.current, copy)?.title}
+        body={cloudSheetContent(lastCloudSheet.current, copy)?.body}
+        testID={`cloud-sheet-${lastCloudSheet.current}`}
+        buttons={cloudButtons(lastCloudSheet.current)}
+      />
       {camera.element}
       {/* Android has no system NFC sheet: while the phone waits for the chip, this sheet shows it
           and covers Welcome, so no other path can start under a running read (not in Paper). */}
@@ -220,8 +361,15 @@ export default function Welcome({navigation}) {
             },
           },
           {label: 'Cancel', onPress: () => setTestSheet(false)},
-        ]}
-      />
+        ]}>
+        {DEV ? (
+          <TextLink
+            label={`Debug cloud store: ${debugStoreLabel(debugStore)}`}
+            onPress={nextDebugStore}
+            testID="welcome-debug-cloud-store"
+          />
+        ) : null}
+      </Sheet>
     </FadeView>
   );
 }

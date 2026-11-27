@@ -23,7 +23,7 @@ import {colors, type} from '../../theme/tokens';
 import {createProfileFromSeed} from '../../../utils/profile/createProfileFromSeed';
 import {hashAccountId} from '../../../utils/crypto/hash';
 import {getKey} from '../../../utils/keyGenerator/keyGenerator';
-import {clearBackupRecord, recordNeedsBackup} from '../../state/backupState';
+import {clearBackupRecord, recordNeedsBackup, recordRestoredCloudBackup} from '../../state/backupState';
 import {setHoldOnboarding} from '../../state/redesignState';
 import {recordWalletMade} from '../../state/welcomeState';
 import {WALLET_PROFILE_NAME, useOnboarding} from '../OnboardingContext';
@@ -104,7 +104,11 @@ export default function Creating({navigation}) {
       });
       await recordWalletMade(accountHash, ob.path === 'import' ? 'imported' : 'created');
       // An imported wallet already has a backup (the words, key, QR code or chip): no reminder.
-      if (ob.path === 'import') await clearBackupRecord(accountHash);
+      // A wallet from the cloud keeps the id of its backup file: a later cloud backup replaces that
+      // file. If this write fails, the wallet stays as made; a later backup then adds a new file.
+      if (ob.path === 'import' && ob.cloudBackupId) {
+        await recordRestoredCloudBackup(accountHash, ob.cloudBackupId).catch(() => clearBackupRecord(accountHash));
+      } else if (ob.path === 'import') await clearBackupRecord(accountHash);
       // The phrase and the password are encrypted and stored now: drop the plain copies.
       dropSecrets();
       // After an import, the phrase or key screen is removed by dropSecrets: open the sheet after it.

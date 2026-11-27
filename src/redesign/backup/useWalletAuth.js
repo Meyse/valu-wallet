@@ -15,7 +15,7 @@ import {getSupportedBiometryType} from '../../utils/keychain/keychain';
 
 const PROMPT = 'Show your recovery phrase';
 
-export function useWalletAuth({title = 'Enter your password', body} = {}) {
+export function useWalletAuth({title = 'Enter your password', body, prompt = PROMPT} = {}) {
   const account = useSelector(state => state.authentication.activeAccount);
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
@@ -44,7 +44,7 @@ export function useWalletAuth({title = 'Enter your password', body} = {}) {
       try {
         const supported = await getSupportedBiometryType();
         if (supported?.biometry) {
-          const pw = await getBiometricPassword(account.accountHash, PROMPT);
+          const pw = await getBiometricPassword(account.accountHash, prompt);
           if (pw != null) return await check(pw);
         }
       } catch (e) {

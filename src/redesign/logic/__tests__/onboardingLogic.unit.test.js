@@ -168,6 +168,7 @@ describe('step order', () => {
     expect(nextRoute('import', ROUTES.importKey)).toBe('CreatePassword');
     expect(nextRoute('import', ROUTES.scanQr)).toBe('CreatePassword');
     expect(nextRoute('import', ROUTES.importNfcPassword)).toBe('CreatePassword');
+    expect(nextRoute('import', ROUTES.importCloud)).toBe('CreatePassword');
     expect(nextRoute('import', ROUTES.password)).toBe('UseFaceId');
     expect(nextRoute('import', ROUTES.faceId)).toBe('Creating');
   });
@@ -194,7 +195,7 @@ describe('step list (round 8)', () => {
   });
 
   it('import: Import wallet, Create password, Use Face ID; every lane is the Import wallet step', () => {
-    [ROUTES.importPhrase, ROUTES.importKey, ROUTES.importNfcPassword].forEach(lane => {
+    [ROUTES.importPhrase, ROUTES.importKey, ROUTES.importNfcPassword, ROUTES.importCloud].forEach(lane => {
       expect(stepListFor('import', lane)).toEqual({
         done: [],
         current: 'Import wallet',

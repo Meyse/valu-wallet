@@ -1,6 +1,6 @@
 // Step order of the redesigned onboarding (flow note, rounds 5 to 7).
 // Create: password, Face ID. No recovery phrase in onboarding: the backup comes later, inside the
-// wallet. Import: a way from the sheet on Welcome (phrase or key, QR, NFC chip), then password and
+// wallet. Import: a way from the sheet on Welcome (phrase or key, QR, NFC chip, cloud backup), then password and
 // Face ID. The first screen of each lane counts as the import step.
 export const ROUTES = {
   welcome: 'Welcome',
@@ -8,6 +8,7 @@ export const ROUTES = {
   scanQr: 'ScanQr',
   importKey: 'ImportKey',
   importNfcPassword: 'ImportNfcPassword',
+  importCloud: 'ImportCloud',
   password: 'CreatePassword',
   faceId: 'UseFaceId',
   creating: 'Creating',
@@ -15,7 +16,13 @@ export const ROUTES = {
 
 export const CREATE_PATH = [ROUTES.welcome, ROUTES.password, ROUTES.faceId, ROUTES.creating];
 
-const IMPORT_LANES = [ROUTES.importPhrase, ROUTES.importKey, ROUTES.scanQr, ROUTES.importNfcPassword];
+const IMPORT_LANES = [
+  ROUTES.importPhrase,
+  ROUTES.importKey,
+  ROUTES.scanQr,
+  ROUTES.importNfcPassword,
+  ROUTES.importCloud,
+];
 
 export const IMPORT_PATH = [
   ROUTES.welcome,
