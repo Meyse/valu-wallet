@@ -20,7 +20,12 @@
       "ct": "3f2W1kIwIBZ6UEVrQBq9uTp3aPdVFkmCK/0AXMAcVlh36ZQveCue0LK+X511WZvp"
     }
   },
-  "record": "v2.REREREREREREREREUfOl/K5p4UvB4M3+n+mzUXvufe9Avt0kkDryEnyOdOJyWdKZRBOTPVGqDcMIITkCFdezHJf187OhHuiUWLGslRhieNl884w40PIuPs7Y4m+lm86vwmTOeavBvquWjBkV98s48w==",
+  "recordBinding": {
+    "accountHash": "goldenaccounthash0001",
+    "area": "seed",
+    "field": "electrum"
+  },
+  "record": "v2.REREREREREREREREUfOl/K5p4UvB4M3+n+mzUXvufe9Avt0kkDryEnyOdOJyWdKZRBOTPVGqDcMIITkCFdezHJf187OhHuiUWLGslRhieNl884w40PIuPs7Y4m+lm86v8noV9XjLl7A1l1BkC/EZHg==",
   "backup": {
     "format": "valu-wallet-backup",
     "header": "eyJ2IjoxLCJjcmVhdGVkQXQiOiIyMDI2LTExLTI2VDEyOjAwOjAwWiIsImJhY2t1cElkIjoiMDAxMTIyMzM0NDU1NjY3Nzg4OTlhYWJiY2NkZGVlZmYiLCJrZGYiOnsiaWQiOiJwYmtkZjItc2hhMjU2IiwiaXRlciI6NjAwMDAwLCJzYWx0IjoiVlZWVlZWVlZWVlZWVlZWVlZWVlZWUT09In0sImNpcGhlciI6eyJpZCI6ImFlcy0yNTYtZ2NtIiwibm9uY2UiOiJabVptWm1abVptWm1abVptIn19",

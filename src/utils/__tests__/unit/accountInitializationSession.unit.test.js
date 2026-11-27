@@ -255,6 +255,35 @@ describe('account initialization session isolation', () => {
     ).toBe(false);
   });
 
+  it('does not let a superseded login write the credential during its validation', async () => {
+    // The real validateLogin writes the process-wide credential itself
+    // unless deferSessionInitialization is true.
+    let credential = null;
+    mockInitSession.mockImplementation(async password => {
+      credential = password;
+      return `session:${password}`;
+    });
+    const accountAValidation = deferred();
+    const accountA = {id: 'alice', accountHash: 'account-a'};
+    const accountB = {id: 'bob', accountHash: 'account-b'};
+    mockValidateLogin.mockImplementation(async (account, password, deferSession) => {
+      if (account.accountHash === accountA.accountHash) await accountAValidation.promise;
+      if (!deferSession) await mockInitSession(password);
+      return {type: 'AUTHENTICATE_USER', activeAccount: account, sessionKey: null};
+    });
+
+    const loadingA = initializeAccountData(accountA, 'password-a');
+    await initializeAccountData(accountB, 'password-b');
+    expect(credential).toBe('password-b');
+
+    // A finishes its validation (slow migration, for example) after B is in.
+    accountAValidation.resolve();
+    await expect(loadingA).rejects.toThrow(
+      'A newer account session replaced this account load',
+    );
+    expect(credential).toBe('password-b');
+  });
+
   it('finishes an account-A teardown from its captured resources after B becomes active', async () => {
     const closingA = deferred();
     const closeA = jest.fn(() => closingA.promise);

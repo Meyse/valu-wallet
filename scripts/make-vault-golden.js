@@ -25,7 +25,10 @@ const kek = crypto.argon2Sync('argon2id', {
 });
 const aad = Buffer.from(['valu-vault-v2', accountHash, 'argon2id', '19', '65536', '3', '1', kdf.salt].join('|'), 'utf8');
 const vault = { v: 2, kdf, wrap: { id: 'aes-256-gcm', nonce: wrapNonce.toString('base64'), ct: gcm(kek, wrapNonce, dek, aad).toString('base64') } };
-const record = 'v2.' + Buffer.concat([recordNonce, gcm(dek, recordNonce, Buffer.from(recordPlaintext, 'utf8'))]).toString('base64');
+// Records are bound to their place: AAD = JSON [domain, 2, accountHash, area, field].
+const recordBinding = { accountHash, area: 'seed', field: 'electrum' };
+const recordAad = Buffer.from(JSON.stringify(['valu-vault-record', 2, accountHash, recordBinding.area, recordBinding.field]), 'utf8');
+const record = 'v2.' + Buffer.concat([recordNonce, gcm(dek, recordNonce, Buffer.from(recordPlaintext, 'utf8'), recordAad)]).toString('base64');
 
 // Cloud backup file, PBKDF2 variant to cover the second adapter.
 const bSalt = Buffer.alloc(16, 0x55);
@@ -42,5 +45,5 @@ const backup = {
 
 process.stdout.write(JSON.stringify({
   note: 'Fixed test inputs; see scripts/make-vault-golden.js. Not a real wallet.',
-  password, accountHash, dekHex: dek.toString('hex'), recordPlaintext, vault, record, backup, backupPlaintext: bPlain,
+  password, accountHash, dekHex: dek.toString('hex'), recordPlaintext, vault, recordBinding, record, backup, backupPlaintext: bPlain,
 }, null, 2) + '\n');

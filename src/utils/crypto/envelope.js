@@ -7,7 +7,9 @@
 //   AAD = "valu-vault-v2|" + accountHash + "|" + KDF fields in fixed order
 // Records: "v2." + base64(nonce12 || ciphertext || tag16) under the DEK. The
 // "." is not in the base64 alphabet, so a legacy record can never carry the
-// prefix.
+// prefix. Each record is bound to its place: the GCM AAD is
+//   JSON ["valu-vault-record", 2, accountHash, area, field]
+// so a record copied to another field or another account fails its tag check.
 import crypto from 'react-native-crypto';
 import { Buffer } from 'buffer';
 import { randomBytes } from './randomBytes';
@@ -28,6 +30,19 @@ const CIPHER_ID = 'aes-256-gcm';
 const NONCE_BYTES = 12;
 const TAG_BYTES = 16;
 const WRAP_AAD_PREFIX = 'valu-vault-v2';
+const RECORD_AAD_DOMAIN = 'valu-vault-record';
+
+// Where a record lives. `field` is the key inside that area: the seed channel,
+// the personal data type, the service id, the attestation data type, or
+// "<coin>/<channel>/<privKey|viewingKey>" for a derived key.
+export const RECORD_AREA = Object.freeze({
+  SEED: 'seed',
+  PERSONAL: 'personal',
+  SERVICE: 'service',
+  ATTESTATION: 'attestation',
+  KEY: 'key',
+});
+const RECORD_AREAS = Object.values(RECORD_AREA);
 
 // ---------------------------------------------------------------------------
 // AES-256-GCM primitive
@@ -68,26 +83,48 @@ export const gcmDecrypt = (key, nonce, ctAndTag, aad) => {
 export const isV2Record = value =>
   typeof value === 'string' && value.startsWith(RECORD_PREFIX);
 
-export const encryptRecord = async (dek, plaintext) => {
+// `binding` = { accountHash, area, field }. It is required: a record without
+// its place is never written or read.
+export const recordAad = binding => {
+  if (
+    binding == null ||
+    typeof binding.accountHash !== 'string' ||
+    binding.accountHash.length === 0 ||
+    !RECORD_AREAS.includes(binding.area) ||
+    typeof binding.field !== 'string' ||
+    binding.field.length === 0
+  ) {
+    throw new VaultError(VAULT_ERROR.FORMAT, 'A vault record needs its account and field');
+  }
+  return Buffer.from(
+    JSON.stringify([RECORD_AAD_DOMAIN, VAULT_VERSION, binding.accountHash, binding.area, binding.field]),
+    'utf8',
+  );
+};
+
+export const encryptRecord = async (dek, plaintext, binding) => {
   if (typeof plaintext !== 'string') {
     throw new VaultError(VAULT_ERROR.FORMAT, 'A vault record must be a string');
   }
+  const aad = recordAad(binding);
   const nonce = await randomBytes(NONCE_BYTES);
-  const body = gcmEncrypt(dek, nonce, Buffer.from(plaintext, 'utf8'));
+  const body = gcmEncrypt(dek, nonce, Buffer.from(plaintext, 'utf8'), aad);
   return RECORD_PREFIX + Buffer.concat([nonce, body]).toString('base64');
 };
 
 // Returns the plaintext string. Throws VaultError on a malformed record or a
-// failed tag check; never returns partial data.
-export const decryptRecord = (dek, value) => {
+// failed tag check (also when the record belongs to another field or
+// account); never returns partial data.
+export const decryptRecord = (dek, value, binding) => {
   if (!isV2Record(value)) {
     throw new VaultError(VAULT_ERROR.FORMAT, 'Not a v2 vault record');
   }
+  const aad = recordAad(binding);
   const blob = decodeBase64Strict(value.slice(RECORD_PREFIX.length), 'vault record');
   if (blob.length < NONCE_BYTES + TAG_BYTES) {
     throw new VaultError(VAULT_ERROR.FORMAT, 'Vault record is too short');
   }
-  const pt = gcmDecrypt(dek, blob.subarray(0, NONCE_BYTES), blob.subarray(NONCE_BYTES));
+  const pt = gcmDecrypt(dek, blob.subarray(0, NONCE_BYTES), blob.subarray(NONCE_BYTES), aad);
   if (pt == null) {
     throw new VaultError(VAULT_ERROR.RECORD_AUTH, 'Vault record failed authentication');
   }

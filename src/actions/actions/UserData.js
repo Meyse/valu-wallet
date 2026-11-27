@@ -25,6 +25,7 @@ import {passwordFailsRule} from '../../utils/auth/passwordRule';
 import {convertLegacyAttestationRecords} from '../../utils/vault/attestationVaultMigration';
 import {deriveKeyPair} from '../../utils/keys';
 import {vaultDecrypt, vaultEncrypt} from '../../utils/seedCrypt';
+import {RECORD_AREA} from '../../utils/crypto/envelope';
 import {hashAccountId} from '../../utils/crypto/hash';
 import {
   CHANNELS,
@@ -419,6 +420,14 @@ export const authenticateAccount = async (
     throw new Error('The vault key is required for this account');
   }
   const vaultKey = {password, dek};
+  const accountHash = account.accountHash
+    ? account.accountHash
+    : hashAccountId(account.id);
+  const keyBinding = (coinId, channel, kind) => ({
+    accountHash,
+    area: RECORD_AREA.KEY,
+    field: `${coinId}/${channel}/${kind}`,
+  });
 
   return new Promise((resolve, reject) => {
     getActiveCoinList()
@@ -448,7 +457,11 @@ export const authenticateAccount = async (
 
                   if (seeds[seedChannel] == null) throw new Error('No seed for channel ' + seedChannel);
 
-                  const decryptedSeed = vaultDecrypt(vaultKey, seeds[seedChannel]);
+                  const decryptedSeed = vaultDecrypt(vaultKey, seeds[seedChannel], {
+                    accountHash,
+                    area: RECORD_AREA.SEED,
+                    field: seedChannel,
+                  });
 
                   if (!decryptedSeed) throw new Error('Failed to decrypt seed for channel ' + seedChannel);
 
@@ -466,11 +479,16 @@ export const authenticateAccount = async (
                     encryptedPrivKey: await vaultEncrypt(
                       vaultKey,
                       keyObj.privKey,
+                      keyBinding(activeCoins[i].id, channel, 'privKey'),
                     ),
                     encryptedViewingKey:
                       keyObj.viewingKey == null
                         ? null
-                        : await vaultEncrypt(vaultKey, keyObj.viewingKey),
+                        : await vaultEncrypt(
+                          vaultKey,
+                          keyObj.viewingKey,
+                          keyBinding(activeCoins[i].id, channel, 'viewingKey'),
+                        ),
                     addresses: keyObj.addresses,
                   };
                 } catch (e) {
@@ -486,9 +504,7 @@ export const authenticateAccount = async (
 
         const activeAccount = {
               id: account.id,
-              accountHash: account.accountHash
-                ? account.accountHash
-                : hashAccountId(account.id),
+              accountHash,
               seeds,
               keys: _keys,
               paymentMethods: {},
@@ -666,11 +682,19 @@ export const addKeypairs = async (
 
       keypairs[seedType] = {
         pubKey: keyObj.pubKey,
-        encryptedPrivKey: await vaultEncrypt(vaultKey, keyObj.privKey),
+        encryptedPrivKey: await vaultEncrypt(vaultKey, keyObj.privKey, {
+          accountHash: sessionScope.accountHash,
+          area: RECORD_AREA.KEY,
+          field: `${coinID}/${seedType}/privKey`,
+        }),
         encryptedViewingKey:
           keyObj.viewingKey == null
             ? null
-            : await vaultEncrypt(vaultKey, keyObj.viewingKey),
+            : await vaultEncrypt(vaultKey, keyObj.viewingKey, {
+              accountHash: sessionScope.accountHash,
+              area: RECORD_AREA.KEY,
+              field: `${coinID}/${seedType}/viewingKey`,
+            }),
         addresses: keyObj.addresses,
       };
       assertCurrent();

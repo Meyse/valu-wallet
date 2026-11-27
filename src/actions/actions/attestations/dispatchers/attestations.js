@@ -2,6 +2,7 @@ import store from "../../../../store"
 import { deleteAttestationDataForUser, loadAttestationDataForUser, storeAttestationDataForUser, clearCorruptedAttestationDataForUser } from "../../../../utils/nativeStore/attestationDataStorage"
 import { requestVaultKey } from "../../../../utils/auth/authBox"
 import { vaultEncrypt, vaultDecrypt } from "../../../../utils/seedCrypt"
+import { RECORD_AREA } from "../../../../utils/crypto/envelope"
 import { setAttestationData } from "../creators/attestations"
 
 export const saveEncryptedAttestationDataForUser = async (encryptedData = {}, accountHash) => {  
@@ -40,7 +41,11 @@ export const modifyAttestationDataForUser = async (data = {}, dataType, accountH
     let existingTypeData = {};
     if (attestationData[dataType]) {
       try {
-        const decryptedExisting = vaultDecrypt(vaultKey, attestationData[dataType]);
+        const decryptedExisting = vaultDecrypt(vaultKey, attestationData[dataType], {
+          accountHash,
+          area: RECORD_AREA.ATTESTATION,
+          field: dataType,
+        });
         if (decryptedExisting !== false) {
           existingTypeData = JSON.parse(decryptedExisting);
         }
@@ -65,7 +70,11 @@ export const modifyAttestationDataForUser = async (data = {}, dataType, accountH
       throw new Error(`Data produces invalid JSON: ${parseError.message}`);
     }
     
-    attestationData[dataType] = await vaultEncrypt(vaultKey, jsonString)
+    attestationData[dataType] = await vaultEncrypt(vaultKey, jsonString, {
+      accountHash,
+      area: RECORD_AREA.ATTESTATION,
+      field: dataType,
+    })
     await saveEncryptedAttestationDataForUser(attestationData, accountHash)
 
     return mergedData
@@ -135,7 +144,11 @@ export const replaceAttestationDataForUser = async (data = {}, dataType, account
       throw new Error(`Data produces invalid JSON: ${parseError.message}`);
     }
     
-    attestationData[dataType] = await vaultEncrypt(vaultKey, jsonString)
+    attestationData[dataType] = await vaultEncrypt(vaultKey, jsonString, {
+      accountHash,
+      area: RECORD_AREA.ATTESTATION,
+      field: dataType,
+    })
     await saveEncryptedAttestationDataForUser(attestationData, accountHash)
 
     return dataWithTimestamps

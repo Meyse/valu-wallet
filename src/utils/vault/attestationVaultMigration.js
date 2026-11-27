@@ -4,7 +4,7 @@
 // does not convert stays in the legacy format, which the password still reads,
 // and the next v2 unlock tries again.
 import { decryptkey } from '../seedCrypt';
-import { decryptRecord, encryptRecord, isV2Record } from '../crypto/envelope';
+import { decryptRecord, encryptRecord, isV2Record, RECORD_AREA } from '../crypto/envelope';
 import { updateAttestationData } from '../nativeStore/attestationDataStorage';
 
 export const convertLegacyAttestationRecords = async (accountHash, password, dek) => {
@@ -23,8 +23,9 @@ export const convertLegacyAttestationRecords = async (accountHash, password, dek
         if (typeof value !== 'string' || isV2Record(value)) continue;
         const plaintext = decryptkey(password, value);
         if (plaintext === false) continue;
-        const converted = await encryptRecord(dek, plaintext);
-        if (decryptRecord(dek, converted) !== plaintext) continue;
+        const binding = {accountHash, area: RECORD_AREA.ATTESTATION, field: key};
+        const converted = await encryptRecord(dek, plaintext, binding);
+        if (decryptRecord(dek, converted, binding) !== plaintext) continue;
         next[key] = converted;
         changed = true;
       }

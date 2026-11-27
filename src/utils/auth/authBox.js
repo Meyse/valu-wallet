@@ -9,7 +9,7 @@ import { getSessionCredential, setSessionCredential } from "../keychain/keychain
 import { arrayToObject } from "../objectManip";
 import { decryptkey, encryptkey, vaultDecrypt } from "../seedCrypt";
 import { getSessionVaultKey, setSessionVaultKey } from "../vault/vaultSession";
-import { isV2Record, unwrapVaultKey } from "../crypto/envelope";
+import { isV2Record, RECORD_AREA, unwrapVaultKey } from "../crypto/envelope";
 
 const getRequestSessionScope = requestContext =>
   requestContext?.sessionScope ||
@@ -150,7 +150,11 @@ export const requestSeeds = async () => {
       CHANNELS,
       (acc, key) => {
         if (state.authentication.activeAccount.seeds[key]) {
-          const seed = vaultDecrypt(vaultKey, state.authentication.activeAccount.seeds[key]);
+          const seed = vaultDecrypt(vaultKey, state.authentication.activeAccount.seeds[key], {
+            accountHash: state.authentication.activeAccount.accountHash,
+            area: RECORD_AREA.SEED,
+            field: key,
+          });
 
           if (!seed) {
             throw new Error("Unable to decrypt seed");
@@ -209,7 +213,11 @@ export const requestPrivKey = async (
       )
 
       assertRequestSessionCurrent(sessionScope, sessionError);
-      const key = vaultDecrypt(vaultKey, encryptedPrivKey)
+      const key = vaultDecrypt(vaultKey, encryptedPrivKey, {
+        accountHash: state.authentication.activeAccount.accountHash,
+        area: RECORD_AREA.KEY,
+        field: `${chainTicker}/${channel}/privKey`,
+      })
       
       if (key !== false) {
         assertRequestSessionCurrent(sessionScope, sessionError);
@@ -248,7 +256,11 @@ export const requestViewingKey = async (chainTicker, channel) => {
 
       const vaultKey = await requestVaultKeyForState(state)
       const key = vaultDecrypt(vaultKey, state.authentication.activeAccount.keys[chainTicker][channel]
-        .encryptedViewingKey)
+        .encryptedViewingKey, {
+        accountHash: state.authentication.activeAccount.accountHash,
+        area: RECORD_AREA.KEY,
+        field: `${chainTicker}/${channel}/viewingKey`,
+      })
       
       if (key !== false) {
         return key
@@ -270,7 +282,11 @@ export const requestPersonalData = async (dataType, _password) => {
     return {}
   } else {
     const vaultKey = await recordVaultKeyForState(state, state.personal[dataType], _password);
-    const data = vaultDecrypt(vaultKey, state.personal[dataType]);
+    const data = vaultDecrypt(vaultKey, state.personal[dataType], {
+      accountHash: state.authentication.activeAccount.accountHash,
+      area: RECORD_AREA.PERSONAL,
+      field: dataType,
+    });
     
     if (data !== false) {
       try {
@@ -295,7 +311,11 @@ export const requestServiceStoredData = async (service, _password) => {
     return {};
   } else {
     const vaultKey = await recordVaultKeyForState(state, state.services.stored[service], _password);
-    const data = vaultDecrypt(vaultKey, state.services.stored[service]);
+    const data = vaultDecrypt(vaultKey, state.services.stored[service], {
+      accountHash: state.authentication.activeAccount.accountHash,
+      area: RECORD_AREA.SERVICE,
+      field: service,
+    });
 
     if (data !== false) {
       try {
@@ -320,7 +340,11 @@ export const requestAttestationData = async (dataType) => {
     return {}
   } else {
     const vaultKey = await requestVaultKeyForState(state)
-    const data = vaultDecrypt(vaultKey, state.attestation[dataType])
+    const data = vaultDecrypt(vaultKey, state.attestation[dataType], {
+      accountHash: state.authentication.activeAccount.accountHash,
+      area: RECORD_AREA.ATTESTATION,
+      field: dataType,
+    })
     
     if (data !== false) {
       try {

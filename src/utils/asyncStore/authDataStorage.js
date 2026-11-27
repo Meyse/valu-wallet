@@ -10,6 +10,7 @@ import {
   decryptRecord,
   encryptRecord,
   isV2Record,
+  RECORD_AREA,
   unwrapVaultKey,
   wrapVaultKey,
 } from '../crypto/envelope'
@@ -98,7 +99,11 @@ export const storeUser = (authData, users) =>
     try {
       for (const seedType in authData.seeds) {
         if (seeds[seedType]) {
-          encryptedKeys[seedType] = await encryptRecord(dek, seeds[seedType]);
+          encryptedKeys[seedType] = await encryptRecord(dek, seeds[seedType], {
+            accountHash,
+            area: RECORD_AREA.SEED,
+            field: seedType,
+          });
         }
       }
 
@@ -109,7 +114,11 @@ export const storeUser = (authData, users) =>
         for (const seedType in authData.seeds) {
           if (
             seeds[seedType] &&
-            decryptRecord(checkDek, encryptedKeys[seedType]) !== seeds[seedType]
+            decryptRecord(checkDek, encryptedKeys[seedType], {
+              accountHash,
+              area: RECORD_AREA.SEED,
+              field: seedType,
+            }) !== seeds[seedType]
           ) {
             throw new Error('Vault check failed');
           }
@@ -169,7 +178,11 @@ const addEncryptedKeyToUserUnlocked = async (accountHash, channel, seed, passwor
       if (userObj.vault != null) {
         const dek = await unwrapVaultKey(password, accountHash, userObj.vault)
         try {
-          newUserObj.encryptedKeys[channel] = await encryptRecord(dek, seed)
+          newUserObj.encryptedKeys[channel] = await encryptRecord(dek, seed, {
+            accountHash,
+            area: RECORD_AREA.SEED,
+            field: channel,
+          })
         } finally {
           dek.fill(0)
         }
@@ -409,8 +422,9 @@ export const deleteUser = accountHash =>
 
 // readKey and writeKey are vault keys ({password, dek}). A v2 account keeps
 // its v2 records as they are (the vault key does not change); only a legacy
-// record is re-encrypted.
-const reencryptRecord = async (record, readKey, writeKey, recordName) => {
+// record is re-encrypted. Each value is bound to accountHash, `area` and its
+// key in the record.
+const reencryptRecord = async (record, readKey, writeKey, recordName, accountHash, area) => {
   const nextRecord = {...record};
 
   for (const key of Object.keys(nextRecord)) {
@@ -420,7 +434,8 @@ const reencryptRecord = async (record, readKey, writeKey, recordName) => {
       throw new Error(`Invalid encrypted ${recordName} value for ${key}`);
     }
 
-    const decryptedValue = vaultDecrypt(readKey, encryptedValue);
+    const binding = {accountHash, area, field: key};
+    const decryptedValue = vaultDecrypt(readKey, encryptedValue, binding);
     if (decryptedValue === false) {
       const passwordError = new Error(
         `Unable to decrypt ${recordName} value for ${key}`,
@@ -430,7 +445,7 @@ const reencryptRecord = async (record, readKey, writeKey, recordName) => {
     }
 
     if (writeKey.dek != null && isV2Record(encryptedValue)) continue;
-    nextRecord[key] = await vaultEncrypt(writeKey, decryptedValue);
+    nextRecord[key] = await vaultEncrypt(writeKey, decryptedValue, binding);
   }
 
   return nextRecord;
@@ -556,6 +571,8 @@ const resetUserPwdTransactionUnwiped = async (
       readKey,
       writeKey,
       "account key",
+      accountHash,
+      RECORD_AREA.SEED,
     );
 
     if (personalRecord[accountHash] != null) {
@@ -564,6 +581,8 @@ const resetUserPwdTransactionUnwiped = async (
         readKey,
         writeKey,
         "personal data",
+        accountHash,
+        RECORD_AREA.PERSONAL,
       );
     }
 
@@ -573,6 +592,8 @@ const resetUserPwdTransactionUnwiped = async (
         readKey,
         writeKey,
         "service data",
+        accountHash,
+        RECORD_AREA.SERVICE,
       );
     }
   } catch (encryptionError) {
@@ -868,7 +889,13 @@ const readUserSeeds = async (pin, user) => {
   const seeds = {};
   for (const channel of [ELECTRUM, DLIGHT_PRIVATE, WYRE_SERVICE, VALU_SERVICE]) {
     const encrypted = encryptedKeys[channel];
-    seeds[channel] = encrypted != null ? vaultDecrypt(vaultKey, encrypted) : null;
+    seeds[channel] = encrypted != null
+      ? vaultDecrypt(vaultKey, encrypted, {
+        accountHash: user.accountHash,
+        area: RECORD_AREA.SEED,
+        field: channel,
+      })
+      : null;
     if (encrypted != null && !seeds[channel]) {
       if (dek != null) {
         // The vault key is right, so this is damaged data, not a wrong password.
@@ -1016,21 +1043,27 @@ const decryptLegacyRecord = (record, password, recordName, proof) => {
   return plain;
 };
 
-const encryptPlainRecord = async (record, plain, dek) => {
+const encryptPlainRecord = async (record, plain, dek, accountHash, area) => {
   const next = {...record};
   for (const key of Object.keys(plain)) {
-    next[key] = await encryptRecord(dek, plain[key]);
+    next[key] = await encryptRecord(dek, plain[key], {accountHash, area, field: key});
   }
   return next;
 };
 
-const assertRecordMatches = (record, plain, dek) => {
+const assertRecordMatches = (record, plain, dek, accountHash, area) => {
   const encryptedKeys = Object.keys(record || {}).filter(key => record[key] != null);
   if (encryptedKeys.length !== Object.keys(plain).length) {
     throw migrationError(VAULT_MIGRATION_ERROR.VERIFY, 'Record count changed');
   }
   for (const key of encryptedKeys) {
-    if (!(key in plain) || decryptRecord(dek, record[key]) !== plain[key]) {
+    let decrypted;
+    try {
+      decrypted = decryptRecord(dek, record[key], {accountHash, area, field: key});
+    } catch (_) {
+      decrypted = null;
+    }
+    if (!(key in plain) || decrypted !== plain[key]) {
       throw migrationError(VAULT_MIGRATION_ERROR.VERIFY, 'A migrated record does not match');
     }
   }
@@ -1072,11 +1105,11 @@ const verifyMigrationSnapshot = async ({before, after, accountHash, password, de
     if (!checkDek.equals(dek)) {
       throw migrationError(VAULT_MIGRATION_ERROR.VERIFY, 'The new vault key does not match');
     }
-    assertRecordMatches(user.encryptedKeys, plain.keys, checkDek);
+    assertRecordMatches(user.encryptedKeys, plain.keys, checkDek, accountHash, RECORD_AREA.SEED);
     const personal = parseStoredObject(after[PERSONAL_DATA_STORAGE_INTERNAL_KEY], 'personal data');
     const service = parseStoredObject(after[SERVICE_STORAGE_INTERNAL_KEY], 'service data');
-    assertRecordMatches(personal[accountHash], plain.personal, checkDek);
-    assertRecordMatches(service[accountHash], plain.service, checkDek);
+    assertRecordMatches(personal[accountHash], plain.personal, checkDek, accountHash, RECORD_AREA.PERSONAL);
+    assertRecordMatches(service[accountHash], plain.service, checkDek, accountHash, RECORD_AREA.SERVICE);
   } finally {
     checkDek.fill(0);
   }
@@ -1145,13 +1178,13 @@ const migrateUserVaultTransaction = async (accountHash, password) => {
   const {vault, dek} = await createVault(password, accountHash);
   let committed = false;
   try {
-    user.encryptedKeys = await encryptPlainRecord(user.encryptedKeys || {}, plain.keys, dek);
+    user.encryptedKeys = await encryptPlainRecord(user.encryptedKeys || {}, plain.keys, dek, accountHash, RECORD_AREA.SEED);
     user.vault = vault;
     if (personalRecord[accountHash] != null) {
-      personalRecord[accountHash] = await encryptPlainRecord(personalRecord[accountHash], plain.personal, dek);
+      personalRecord[accountHash] = await encryptPlainRecord(personalRecord[accountHash], plain.personal, dek, accountHash, RECORD_AREA.PERSONAL);
     }
     if (serviceRecord[accountHash] != null) {
-      serviceRecord[accountHash] = await encryptPlainRecord(serviceRecord[accountHash], plain.service, dek);
+      serviceRecord[accountHash] = await encryptPlainRecord(serviceRecord[accountHash], plain.service, dek, accountHash, RECORD_AREA.SERVICE);
     }
 
     const after = {

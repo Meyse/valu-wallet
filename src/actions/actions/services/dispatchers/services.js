@@ -11,6 +11,7 @@ import {
   VALU_SERVICE_ID,
 } from "../../../../utils/constants/services";
 import { vaultDecrypt, vaultEncrypt } from "../../../../utils/seedCrypt";
+import { RECORD_AREA } from "../../../../utils/crypto/envelope";
 import WyreProvider from "../../../../utils/services/WyreProvider";
 import ValuProvider from "../../../../utils/services/ValuProvider";
 import { setServiceStored } from "../creators/services";
@@ -39,10 +40,14 @@ const assertOriginatingSessionCurrent = (sessionScope, requestContext) => {
   }
 };
 
-const decryptServiceData = (encryptedData, vaultKey, service) => {
+const decryptServiceData = (encryptedData, vaultKey, service, accountHash) => {
   if (encryptedData == null) return {};
 
-  const decrypted = vaultDecrypt(vaultKey, encryptedData);
+  const decrypted = vaultDecrypt(vaultKey, encryptedData, {
+    accountHash,
+    area: RECORD_AREA.SERVICE,
+    field: service,
+  });
 
   if (decrypted === false) {
     throw new Error("Unable to decrypt service stored data for " + service);
@@ -114,6 +119,7 @@ export const modifyServiceStoredDataForUser = async (
       serviceStoredData[service],
       vaultKey,
       service,
+      accountHash,
     );
     const nextData =
       typeof data === "function" ? await data(currentData) : data;
@@ -121,7 +127,8 @@ export const modifyServiceStoredDataForUser = async (
 
     serviceStoredData[service] = await vaultEncrypt(
       vaultKey,
-      JSON.stringify(nextData)
+      JSON.stringify(nextData),
+      {accountHash, area: RECORD_AREA.SERVICE, field: service},
     );
     assertOriginatingSessionCurrent(sessionScope, scopedRequestContext);
     await saveEncryptedServiceStoredDataForUser(
@@ -151,7 +158,11 @@ export const resetServicesStoredEncryptionForUser = async (
       };
 
       const data = await requestServiceStoredData(key, oldPwd);
-      serviceStoredData[key] = await vaultEncrypt(await requestVaultKey(), JSON.stringify(data))
+      serviceStoredData[key] = await vaultEncrypt(
+        await requestVaultKey(),
+        JSON.stringify(data),
+        {accountHash, area: RECORD_AREA.SERVICE, field: key},
+      )
     }
 
     await saveEncryptedServiceStoredDataForUser(

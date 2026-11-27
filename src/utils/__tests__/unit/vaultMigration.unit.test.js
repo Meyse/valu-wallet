@@ -130,13 +130,14 @@ const expectWalletOpens = async (password = PW) => {
     read = value => decryptkey(password, value);
   } else {
     const dek = await envelope.unwrapVaultKey(password, HASH, user.vault);
-    read = value => envelope.decryptRecord(dek, value);
+    read = (value, area, field) => envelope.decryptRecord(dek, value, { accountHash: HASH, area, field });
   }
+  const { SEED, PERSONAL: PERSONAL_AREA, SERVICE: SERVICE_AREA } = envelope.RECORD_AREA;
   for (const [channel, seed] of Object.entries(EXPECTED.keys)) {
-    expect(read(user.encryptedKeys[channel])).toBe(seed);
+    expect(read(user.encryptedKeys[channel], SEED, channel)).toBe(seed);
   }
-  expect(read(personal.contact)).toBe(PERSONAL);
-  expect(read(service.service)).toBe(SERVICE);
+  expect(read(personal.contact, PERSONAL_AREA, 'contact')).toBe(PERSONAL);
+  expect(read(service.service, SERVICE_AREA, 'service')).toBe(SERVICE);
 
   const unlocked = await unlockUserVault(password, NAME, false);
   expect(unlocked.seeds.electrum).toBe(SEEDS.electrum);
@@ -220,8 +221,21 @@ describe('migration of a legacy wallet', () => {
   it('writes nothing when the verify step finds a mismatch', async () => {
     const before = await readAll();
     const realEncrypt = envelope.encryptRecord;
-    jest.spyOn(envelope, 'encryptRecord').mockImplementation((dek, text) =>
-      realEncrypt(dek, text === SERVICE ? 'changed' : text));
+    jest.spyOn(envelope, 'encryptRecord').mockImplementation((dek, text, binding) =>
+      realEncrypt(dek, text === SERVICE ? 'changed' : text, binding));
+    const calls = instrumentWrites();
+
+    await expect(migrateUserVault(HASH, PW))
+      .rejects.toMatchObject({ code: VAULT_MIGRATION_ERROR.VERIFY });
+    expect(calls).toEqual([]);
+    expect(await readAll()).toEqual(before);
+  });
+
+  it('writes nothing when a record is bound to the wrong field', async () => {
+    const before = await readAll();
+    const realEncrypt = envelope.encryptRecord;
+    jest.spyOn(envelope, 'encryptRecord').mockImplementation((dek, text, binding) =>
+      realEncrypt(dek, text, binding.field === 'electrum' ? { ...binding, field: 'dlight_private' } : binding));
     const calls = instrumentWrites();
 
     await expect(migrateUserVault(HASH, PW))
@@ -346,6 +360,19 @@ describe('vault v2 accounts', () => {
     expect(Buffer.isBuffer(unlocked.dek)).toBe(true);
   });
 
+  it('refuses a seed record that was moved to another channel', async () => {
+    await migrateUserVault(HASH, PW);
+    const record = parse(await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY));
+    const user = record.users.find(u => u.accountHash === HASH);
+    // Same account, same vault key: only the record binding tells them apart.
+    [user.encryptedKeys.electrum, user.encryptedKeys.dlight_private] =
+      [user.encryptedKeys.dlight_private, user.encryptedKeys.electrum];
+    await SecureStorage.setItem(USER_DATA_STORAGE_INTERNAL_KEY, JSON.stringify(record));
+
+    await expect(unlockUserVault(PW, NAME, false))
+      .rejects.toMatchObject({ code: VAULT_ERROR.RECORD_AUTH });
+  });
+
   it('changes only the key wrap on a password change after migration', async () => {
     const { dek } = await migrateUserVault(HASH, PW);
     const before = await readAll();
@@ -382,7 +409,9 @@ describe('vault v2 accounts', () => {
     const { dek } = await migrateUserVault(HASH, PW);
     // Each root fits one storage row; the journal holds two copies of all three.
     const service = parse(await SecureStorage.getItem(SERVICE_STORAGE_INTERNAL_KEY));
-    service[HASH].big = await envelope.encryptRecord(dek, 'x'.repeat(300 * 1024));
+    service[HASH].big = await envelope.encryptRecord(dek, 'x'.repeat(300 * 1024), {
+      accountHash: HASH, area: envelope.RECORD_AREA.SERVICE, field: 'big',
+    });
     await SecureStorage.setItem(SERVICE_STORAGE_INTERNAL_KEY, JSON.stringify(service));
     const user = parse(await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY)).users
       .find(u => u.accountHash === HASH);
@@ -448,6 +477,7 @@ describe('unlock (password and biometric login share validateLogin)', () => {
 
 describe('attestation records', () => {
   const ATTEST = JSON.stringify({ claim: 'fixture attestation' });
+  const ATTEST_BINDING = { accountHash: HASH, area: envelope.RECORD_AREA.ATTESTATION, field: 'attestations' };
 
   const fakeAttestationFile = async records => {
     let file = { [HASH]: records, [OTHER_HASH]: { kept: 'other account value' } };
@@ -470,7 +500,7 @@ describe('attestation records', () => {
 
     await expect(convertLegacyAttestationRecords(HASH, PW, dek)).resolves.toBe(true);
     const after = readFile();
-    expect(envelope.decryptRecord(dek, after[HASH].attestations)).toBe(ATTEST);
+    expect(envelope.decryptRecord(dek, after[HASH].attestations, ATTEST_BINDING)).toBe(ATTEST);
     expect(after[HASH].unreadable).toBe(otherPasswordRecord);
     expect(after[OTHER_HASH]).toEqual({ kept: 'other account value' });
   });
@@ -484,7 +514,7 @@ describe('attestation records', () => {
     store.dispatch(authenticateUser({ ...user, vaultVersion: 2 }, sessionKey));
 
     await expect(resetUserPwd(HASH, NEW_PW, PW)).resolves.not.toBe(false);
-    expect(envelope.decryptRecord(dek, readFile()[HASH].attestations)).toBe(ATTEST);
+    expect(envelope.decryptRecord(dek, readFile()[HASH].attestations, ATTEST_BINDING)).toBe(ATTEST);
   });
 });
 

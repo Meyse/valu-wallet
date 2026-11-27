@@ -330,10 +330,12 @@ export const initializeAccountData = async (
   };
 
   setInitStep(VALIDATING_ACCOUNT);
+  // `true`: validation must not write the process-wide credential. This
+  // load writes it below, serialized and only while it is still current.
   const accountAuthenticator = await validateLogin(
     account,
     password,
-    false,
+    true,
     alertOnFail,
   );
 

@@ -53,12 +53,14 @@ export const decryptGeneral = (cipherKey, string) => (
 
 // Vault v2 records. A vault key is { password, dek }: `dek` is the unlocked
 // vault key of a v2 account (see utils/vault/vaultSession.js), `password` the
-// account password. A v2 record ("v2." prefix) needs the DEK. A legacy record
-// keeps the old password reader. Writes use the DEK when the account has one,
-// so a v2 account never gets a new legacy record.
-export const vaultEncrypt = async (vaultKey, string) => {
+// account password. A v2 record ("v2." prefix) needs the DEK and its
+// `binding` ({ accountHash, area, field }, see crypto/envelope.js). A legacy
+// record keeps the old password reader and ignores the binding. Writes use
+// the DEK when the account has one, so a v2 account never gets a new legacy
+// record.
+export const vaultEncrypt = async (vaultKey, string, binding) => {
   if (vaultKey != null && vaultKey.dek != null) {
-    return encryptRecord(vaultKey.dek, string);
+    return encryptRecord(vaultKey.dek, string, binding);
   }
   if (vaultKey == null || typeof vaultKey.password !== 'string') {
     throw new Error('A vault key is required to encrypt');
@@ -67,11 +69,11 @@ export const vaultEncrypt = async (vaultKey, string) => {
 };
 
 // Returns the plaintext, or false like decryptkey.
-export const vaultDecrypt = (vaultKey, string) => {
+export const vaultDecrypt = (vaultKey, string, binding) => {
   if (isV2Record(string)) {
     if (vaultKey == null || vaultKey.dek == null) return false;
     try {
-      return decryptRecord(vaultKey.dek, string);
+      return decryptRecord(vaultKey.dek, string, binding);
     } catch (_) {
       return false;
     }

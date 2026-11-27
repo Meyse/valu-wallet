@@ -3,6 +3,7 @@ import {
   createVault,
   decryptRecord,
   encryptRecord,
+  RECORD_AREA,
   gcmDecrypt,
   gcmEncrypt,
   isV2Record,
@@ -67,7 +68,7 @@ describe('vault golden file', () => {
   it('opens a vault written to the documented format', async () => {
     const dek = await unwrapVaultKey(golden.password, golden.accountHash, golden.vault);
     expect(dek.toString('hex')).toBe(golden.dekHex);
-    expect(decryptRecord(dek, golden.record)).toBe(golden.recordPlaintext);
+    expect(decryptRecord(dek, golden.record, golden.recordBinding)).toBe(golden.recordPlaintext);
   }, 30000);
 
   it('opens a backup file written to the documented format', async () => {
@@ -136,14 +137,15 @@ describe('vault key wrap', () => {
 
 describe('vault records', () => {
   const dek = Buffer.from(golden.dekHex, 'hex');
+  const SEED = { accountHash: 'account-a', area: RECORD_AREA.SEED, field: 'electrum' };
 
   it('round-trips text with a fresh nonce for each record', async () => {
     const text = 'zoo wrong ✓ émoji 🔑 ' + 'x'.repeat(5000);
-    const a = await encryptRecord(dek, text);
-    const b = await encryptRecord(dek, text);
+    const a = await encryptRecord(dek, text, SEED);
+    const b = await encryptRecord(dek, text, SEED);
     expect(isV2Record(a)).toBe(true);
     expect(a).not.toBe(b);
-    expect(decryptRecord(dek, a)).toBe(text);
+    expect(decryptRecord(dek, a, SEED)).toBe(text);
   });
 
   it('never treats a legacy base64 record as v2', () => {
@@ -153,13 +155,36 @@ describe('vault records', () => {
   });
 
   it('fails on a changed byte or another key', async () => {
-    const rec = await encryptRecord(dek, 'secret seed words');
+    const rec = await encryptRecord(dek, 'secret seed words', SEED);
     const body = rec.slice(3);
-    expect(() => decryptRecord(dek, 'v2.' + flipBase64Byte(body, 20)))
+    expect(() => decryptRecord(dek, 'v2.' + flipBase64Byte(body, 20), SEED))
       .toThrow(expect.objectContaining({ code: VAULT_ERROR.RECORD_AUTH }));
-    expect(() => decryptRecord(Buffer.alloc(32, 9), rec))
+    expect(() => decryptRecord(Buffer.alloc(32, 9), rec, SEED))
       .toThrow(expect.objectContaining({ code: VAULT_ERROR.RECORD_AUTH }));
-    expect(() => decryptRecord(dek, 'v2.###'))
+    expect(() => decryptRecord(dek, 'v2.###', SEED))
+      .toThrow(expect.objectContaining({ code: VAULT_ERROR.FORMAT }));
+  });
+
+  // A record copied to another place under the same vault key must not read.
+  it.each([
+    ['another field', { ...SEED, field: 'dlight_private' }],
+    ['another area', { ...SEED, area: RECORD_AREA.PERSONAL }],
+    ['another account', { ...SEED, accountHash: 'account-b' }],
+  ])('fails when the record is moved to %s', async (_name, otherPlace) => {
+    const rec = await encryptRecord(dek, 'secret seed words', SEED);
+    expect(() => decryptRecord(dek, rec, otherPlace))
+      .toThrow(expect.objectContaining({ code: VAULT_ERROR.RECORD_AUTH }));
+  });
+
+  it('refuses to write or read a record without its place', async () => {
+    await expect(encryptRecord(dek, 'text')).rejects
+      .toMatchObject({ code: VAULT_ERROR.FORMAT });
+    await expect(encryptRecord(dek, 'text', { ...SEED, area: 'unknown' })).rejects
+      .toMatchObject({ code: VAULT_ERROR.FORMAT });
+    const rec = await encryptRecord(dek, 'text', SEED);
+    expect(() => decryptRecord(dek, rec))
+      .toThrow(expect.objectContaining({ code: VAULT_ERROR.FORMAT }));
+    expect(() => decryptRecord(dek, rec, { ...SEED, field: '' }))
       .toThrow(expect.objectContaining({ code: VAULT_ERROR.FORMAT }));
   });
 });

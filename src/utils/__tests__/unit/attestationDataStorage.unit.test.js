@@ -51,7 +51,7 @@ const {
   storeAttestationDataForUser,
 } = require('../../nativeStore/attestationDataStorage');
 const { convertLegacyAttestationRecords } = require('../../vault/attestationVaultMigration');
-const { encryptRecord } = require('../../crypto/envelope');
+const { encryptRecord, RECORD_AREA } = require('../../crypto/envelope');
 const { encryptkey } = require('../../seedCrypt');
 
 const OLD = { a: { record: 'old a' }, b: { record: 'old b' } };
@@ -141,7 +141,7 @@ describe('attestation conversion to the vault key', () => {
 
   it('removes a stale backup that holds the legacy record', async () => {
     // State after a kill between "temp to live" and "remove backup".
-    const live = { [HASH]: { attestations: await encryptRecord(DEK, ATTEST) } };
+    const live = { [HASH]: { attestations: await encryptRecord(DEK, ATTEST, { accountHash: HASH, area: RECORD_AREA.ATTESTATION, field: 'attestations' }) } };
     await storeAttestationData(live);
     mockFiles.set(backupPath(), JSON.stringify({ [HASH]: { attestations: await encryptkey(PW, ATTEST) } }));
 
