@@ -1,6 +1,7 @@
 const mockGetState = jest.fn();
 const mockResetUserPwd = jest.fn();
 const mockRequestPassword = jest.fn();
+const mockRequestVaultKey = jest.fn();
 const mockRequestSeeds = jest.fn();
 const mockUpdateAccountKeys = jest.fn();
 
@@ -41,6 +42,7 @@ jest.mock('../../../actions/actions/account/dispatchers/account', () => ({
 jest.mock('../../auth/authBox', () => ({
   initSession: jest.fn(),
   requestPassword: mockRequestPassword,
+  requestVaultKey: mockRequestVaultKey,
   requestSeeds: mockRequestSeeds,
 }));
 
@@ -67,6 +69,7 @@ describe('password reset session scope', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRequestPassword.mockResolvedValue('password-a');
+    mockRequestVaultKey.mockResolvedValue({password: 'password-a', dek: null});
     mockRequestSeeds.mockResolvedValue({electrum: 'seed-a'});
   });
 

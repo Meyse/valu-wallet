@@ -1,7 +1,28 @@
 import {
   encryptkey,
   decryptkey,
+  decryptkeyAuthenticated,
+  vaultDecrypt,
+  vaultEncrypt,
 } from '../seedCrypt'
+import {
+  createVault,
+  decryptRecord,
+  encryptRecord,
+  isV2Record,
+  RECORD_AREA,
+  unwrapVaultKey,
+  wrapVaultKey,
+} from '../crypto/envelope'
+import { isVaultError, VAULT_ERROR } from '../crypto/vaultErrors'
+import { Buffer } from 'buffer'
+import { setSessionVaultKey } from '../vault/vaultSession'
+import {
+  ATTESTATION_NOT_CONVERTED,
+  convertLegacyAttestationRecords,
+  hasLegacyAttestationRecords,
+} from '../vault/attestationVaultMigration'
+import { passwordFailsRule } from '../auth/passwordRule'
 
 import { hashAccountId } from "../crypto/hash";
 import {
@@ -17,6 +38,7 @@ import {
   setShowHideSeedCorruptionSetting,
   signOut,
   updateSessionKey,
+  setActiveAccountPasswordRule,
 } from '../../actions/actionCreators';
 import {
   PERSONAL_DATA_STORAGE_INTERNAL_KEY,
@@ -75,19 +97,48 @@ export const storeUser = (authData, users) =>
     let encryptedKeys = {...CHANNELS_NULL_TEMPLATE};
     const {seeds} = authData;
 
-    for (const seedType in authData.seeds) {
-      if (seeds[seedType]) {
-        encryptedKeys[seedType] = await encryptkey(
-          authData.password,
-          seeds[seedType],
-        );
+    // New wallets start in vault format v2: a random vault key encrypts the
+    // seeds, and the password key only wraps the vault key.
+    const {vault, dek} = await createVault(authData.password, accountHash);
+    try {
+      for (const seedType in authData.seeds) {
+        if (seeds[seedType]) {
+          encryptedKeys[seedType] = await encryptRecord(dek, seeds[seedType], {
+            accountHash,
+            area: RECORD_AREA.SEED,
+            field: seedType,
+          });
+        }
       }
+
+      // Never store a wallet that the same password cannot open again.
+      const checkDek = await unwrapVaultKey(authData.password, accountHash, vault);
+      try {
+        if (!checkDek.equals(dek)) throw new Error('Vault check failed');
+        for (const seedType in authData.seeds) {
+          if (
+            seeds[seedType] &&
+            decryptRecord(checkDek, encryptedKeys[seedType], {
+              accountHash,
+              area: RECORD_AREA.SEED,
+              field: seedType,
+            }) !== seeds[seedType]
+          ) {
+            throw new Error('Vault check failed');
+          }
+        }
+      } finally {
+        checkDek.fill(0);
+      }
+    } finally {
+      dek.fill(0);
     }
 
     let userObj = {
       id: authData.userName,
       accountHash,
       encryptedKeys,
+      vault,
       biometry: authData.biometry ? true : false,
       hideSeedWarnings: !!(authData.hideSeedWarnings),
       keyDerivationVersion:
@@ -127,8 +178,21 @@ const addEncryptedKeyToUserUnlocked = async (accountHash, channel, seed, passwor
     if (userObj.encryptedKeys[channel] != null && !overwrite) {
       throw new Error(`User with hash ${accountHash} already has as ${channel} seed, cannot overwrite.`)
     } else {
-      let newUserObj = {...userObj}
-      newUserObj.encryptedKeys[channel] = await encryptkey(password, seed)
+      let newUserObj = {...userObj, encryptedKeys: {...userObj.encryptedKeys}}
+      if (userObj.vault != null) {
+        const dek = await unwrapVaultKey(password, accountHash, userObj.vault)
+        try {
+          newUserObj.encryptedKeys[channel] = await encryptRecord(dek, seed, {
+            accountHash,
+            area: RECORD_AREA.SEED,
+            field: channel,
+          })
+        } finally {
+          dek.fill(0)
+        }
+      } else {
+        newUserObj.encryptedKeys[channel] = await encryptkey(password, seed)
+      }
       
       let newUsers = [...users]
       newUsers[userObjIndex] = newUserObj
@@ -224,13 +288,14 @@ const createCommittedJournalTombstone = journal => ({
   phase: "committed",
 });
 
-const applyPasswordMigrationSnapshot = async snapshot => {
+const applyPasswordMigrationSnapshot = async (snapshot, afterEachKey) => {
   for (const key of PASSWORD_MIGRATION_KEYS) {
     if (snapshot[key] == null) {
       await SecureStorage.removeItem(key);
     } else {
       await SecureStorage.setItem(key, snapshot[key]);
     }
+    if (afterEachKey) await afterEachKey(key);
   }
 };
 
@@ -359,7 +424,11 @@ export const deleteUser = accountHash =>
     return users;
   });
 
-const reencryptRecord = async (record, oldPwd, newPwd, recordName) => {
+// readKey and writeKey are vault keys ({password, dek}). A v2 account keeps
+// its v2 records as they are (the vault key does not change); only a legacy
+// record is re-encrypted. Each value is bound to accountHash, `area` and its
+// key in the record.
+const reencryptRecord = async (record, readKey, writeKey, recordName, accountHash, area) => {
   const nextRecord = {...record};
 
   for (const key of Object.keys(nextRecord)) {
@@ -369,7 +438,8 @@ const reencryptRecord = async (record, oldPwd, newPwd, recordName) => {
       throw new Error(`Invalid encrypted ${recordName} value for ${key}`);
     }
 
-    const decryptedValue = decryptkey(oldPwd, encryptedValue);
+    const binding = {accountHash, area, field: key};
+    const decryptedValue = vaultDecrypt(readKey, encryptedValue, binding);
     if (decryptedValue === false) {
       const passwordError = new Error(
         `Unable to decrypt ${recordName} value for ${key}`,
@@ -378,7 +448,8 @@ const reencryptRecord = async (record, oldPwd, newPwd, recordName) => {
       throw passwordError;
     }
 
-    nextRecord[key] = await encryptkey(newPwd, decryptedValue);
+    if (writeKey.dek != null && isV2Record(encryptedValue)) continue;
+    nextRecord[key] = await vaultEncrypt(writeKey, decryptedValue, binding);
   }
 
   return nextRecord;
@@ -386,11 +457,29 @@ const reencryptRecord = async (record, oldPwd, newPwd, recordName) => {
 
 let passwordMigrationQueue = Promise.resolve();
 
-const resetUserPwdTransaction = async (
+// Wipes the plaintext vault keys of a password change when it ends, on every
+// path. The session cache keeps its own copy.
+const resetUserPwdTransaction = async (accountHash, newPwd, oldPwd, sessionScope) => {
+  const vaultKeys = [];
+  try {
+    return await resetUserPwdTransactionUnwiped(
+      accountHash,
+      newPwd,
+      oldPwd,
+      sessionScope,
+      vaultKeys,
+    );
+  } finally {
+    for (const key of vaultKeys) key.fill(0);
+  }
+};
+
+const resetUserPwdTransactionUnwiped = async (
   accountHash,
   newPwd,
   oldPwd,
   sessionScope,
+  vaultKeys,
 ) => {
   const assertResetSessionCurrent = expectedScope => {
     if (!sessionScopeIsCurrent(store.getState(), expectedScope)) {
@@ -457,29 +546,64 @@ const resetUserPwdTransaction = async (
     }
   }
 
+  // Vault v2: the password key only wraps the vault key, so a password
+  // change re-wraps 32 bytes and keeps every v2 record as it is.
+  let vaultDek = null;
+  if (user.vault != null) {
+    try {
+      vaultDek = await unwrapVaultKey(oldPwd, accountHash, user.vault);
+      vaultKeys.push(vaultDek);
+    } catch (vaultError) {
+      if (isVaultError(vaultError, VAULT_ERROR.WRONG_PASSWORD)) {
+        Alert.alert("Authentication Error", "Incorrect password");
+        return false;
+      }
+      throw vaultError;
+    }
+  }
+  if (vaultDek != null) {
+    // Attestations live outside the journal. Convert any legacy record now,
+    // while the old password still reads it. After the change no key opens
+    // a legacy record, so stop before any write if one remains.
+    await convertLegacyAttestationRecords(accountHash, oldPwd, vaultDek);
+    if (await hasLegacyAttestationRecords(accountHash, oldPwd)) {
+      const error = new Error('An attestation record did not move to the vault key');
+      error.code = ATTESTATION_NOT_CONVERTED;
+      throw error;
+    }
+  }
+  const readKey = {password: oldPwd, dek: vaultDek};
+  const writeKey = vaultDek != null ? {dek: vaultDek} : {password: newPwd};
+
   try {
     user.encryptedKeys = await reencryptRecord(
       user.encryptedKeys || {},
-      oldPwd,
-      newPwd,
+      readKey,
+      writeKey,
       "account key",
+      accountHash,
+      RECORD_AREA.SEED,
     );
 
     if (personalRecord[accountHash] != null) {
       personalRecord[accountHash] = await reencryptRecord(
         personalRecord[accountHash],
-        oldPwd,
-        newPwd,
+        readKey,
+        writeKey,
         "personal data",
+        accountHash,
+        RECORD_AREA.PERSONAL,
       );
     }
 
     if (serviceRecord[accountHash] != null) {
       serviceRecord[accountHash] = await reencryptRecord(
         serviceRecord[accountHash],
-        oldPwd,
-        newPwd,
+        readKey,
+        writeKey,
         "service data",
+        accountHash,
+        RECORD_AREA.SERVICE,
       );
     }
   } catch (encryptionError) {
@@ -489,6 +613,17 @@ const resetUserPwdTransaction = async (
     }
 
     throw encryptionError;
+  }
+
+  if (vaultDek != null) {
+    user.vault = await wrapVaultKey(vaultDek, newPwd, accountHash);
+    // Verify the new wrap with a fresh derivation before anything is written.
+    const checkDek = await unwrapVaultKey(newPwd, accountHash, user.vault);
+    const wrapMatches = checkDek.equals(vaultDek);
+    checkDek.fill(0);
+    if (!wrapMatches) {
+      throw new Error("Vault re-wrap check failed");
+    }
   }
 
   const after = {
@@ -504,6 +639,9 @@ const resetUserPwdTransaction = async (
     before,
     after,
   };
+  // Checked before the first write: a journal that startup cannot read back
+  // must never be written.
+  const journalString = serializePreparedJournal(journal);
   let committedDurable = false;
   let sessionCredentialMutationStarted = false;
 
@@ -511,7 +649,7 @@ const resetUserPwdTransaction = async (
     assertResetSessionCurrent(sessionScope);
     await SecureStorage.setItem(
       PASSWORD_MIGRATION_STORAGE_INTERNAL_KEY,
-      JSON.stringify(journal),
+      journalString,
     );
     await applyPasswordMigrationSnapshot(after);
 
@@ -532,6 +670,9 @@ const resetUserPwdTransaction = async (
     sessionCredentialMutationStarted = true;
     const sessionKey = await initSession(newPwd);
     assertResetSessionCurrent(sessionScope);
+    if (vaultDek != null) {
+      setSessionVaultKey(accountHash, sessionKey, vaultDek);
+    }
     store.dispatch(
       scopeSessionAction(updateSessionKey(sessionKey), sessionScope),
     );
@@ -559,6 +700,10 @@ const resetUserPwdTransaction = async (
     if (store.getState().services.stored !== nextServiceData) {
       throw new Error('Failed to publish migrated service data');
     }
+    store.dispatch(scopeSessionAction(
+      setActiveAccountPasswordRule(passwordFailsRule(newPwd)),
+      postResetSessionScope,
+    ));
 
     try {
       await SecureStorage.removeItem(PASSWORD_MIGRATION_STORAGE_INTERNAL_KEY);
@@ -733,76 +878,402 @@ export const getUsers = () => {
   })
 };
 
-// Check user password
-export const checkPinForUser = (pin, userName, alertOnFail = true, alertOnCorruptedSeed = false) =>
-  queueUserStorageWrite(() => new Promise((resolve, reject) => {
-    SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY)
-      .then(async res => {
-        let users = res ? JSON.parse(res) : {users: []};
-        if(pin !== null && users.users) {
-          let user = users.users.find(n => n.id === userName);
+// Decrypts every seed of a stored user with the typed password. Returns
+// { seeds, dek } (dek is null for a legacy user), or null for a wrong
+// password. A v2 user is checked by unwrapping the vault key: one KDF and one
+// tag check.
+const readUserSeeds = async (pin, user) => {
+  let dek = null;
+  if (user.vault != null) {
+    if (typeof pin !== 'string' || pin.length === 0) return null;
+    try {
+      dek = await unwrapVaultKey(pin, user.accountHash, user.vault);
+    } catch (vaultError) {
+      if (isVaultError(vaultError, VAULT_ERROR.WRONG_PASSWORD)) return null;
+      throw vaultError;
+    }
+  }
 
-          if (user) {
-            const { electrum, dlight_private, wyre_service, valu_service } = user.encryptedKeys
-            const _decryptedSeeds = {
-              [ELECTRUM]: electrum != null ? decryptkey(pin, electrum) : null,
-              [DLIGHT_PRIVATE]: dlight_private != null ? decryptkey(pin, dlight_private) : null,
-              [WYRE_SERVICE]: wyre_service != null ? decryptkey(pin, wyre_service) : null,
-              [VALU_SERVICE]: valu_service != null ? decryptkey(pin, valu_service) : null
-            }
-
-            if (
-              (electrum == null || _decryptedSeeds.electrum) &&
-              (dlight_private == null || _decryptedSeeds.dlight_private) &&
-              (wyre_service == null || _decryptedSeeds.wyre_service) &&
-              (valu_service == null || _decryptedSeeds.valu_service)
-            ) {
-              let seedPotentiallyCorrupted = false;
-
-              // Legacy decryption is unauthenticated; password checks must not rewrite seeds.
-              for (const channel in _decryptedSeeds) {
-                if (_decryptedSeeds[channel]) {
-                  try {
-                    if (alertOnCorruptedSeed) {
-                      seedPotentiallyCorrupted = (SUSPICIOUS_UNICODE_CHARACTER_TEST).test(_decryptedSeeds[channel])
-                    }
-                  } catch (e) {
-                    Alert.alert("Authentication Error", "Internal authentication error.");
-                  }
-                }
-              }
-
-              if (seedPotentiallyCorrupted) {
-                if (!user.hideSeedWarnings) {
-                  Alert.alert(
-                    "Possible Seed Corruption Detected",
-                    "Non-standard characters were detected in your profile seed.\n\nIf your seed is a standard word-based phrase, or a WIF key, this could indicate that your seed data was corrupted, and may not match your seed backup.\n\nCheck your seed by going into Settings > Profile > Recover Seed. If it does not match your backup, create a new profile from your backup and send any funds on this profile to that new profile.\n\nYou can disable this warning in Profile > Settings."
-                  );
-                }
-
-                store.dispatch(setShowHideSeedCorruptionSetting(true));
-              }
-
-              resolve(_decryptedSeeds);
-            } else {
-              setTimeout(() => {
-                if (alertOnFail) Alert.alert("Authentication Error", "Incorrect password");
-
-                reject(new Error("Incorrect password"));
-              }, INCORRECT_PASSWORD_DELAY_ERROR_MS);
-            }
-          }
-          else {
-            if (alertOnFail) Alert.alert("Authentication Error", "Please select an existing user")
-            throw new Error("Please select an existing user");
-          }
-        }
-        else {
-          if (alertOnFail) Alert.alert("Authentication Error", "Please enter a password")
-          throw new Error("Please enter a password");
-        }
+  const vaultKey = {password: pin, dek};
+  const encryptedKeys = user.encryptedKeys || {};
+  const seeds = {};
+  for (const channel of [ELECTRUM, DLIGHT_PRIVATE, WYRE_SERVICE, VALU_SERVICE]) {
+    const encrypted = encryptedKeys[channel];
+    seeds[channel] = encrypted != null
+      ? vaultDecrypt(vaultKey, encrypted, {
+        accountHash: user.accountHash,
+        area: RECORD_AREA.SEED,
+        field: channel,
       })
-      .catch(err => {
-        reject(err)
-      });
-  }));
+      : null;
+    if (encrypted != null && !seeds[channel]) {
+      if (dek != null) {
+        // The vault key is right, so this is damaged data, not a wrong password.
+        dek.fill(0);
+        const error = new Error(`Unable to read the ${channel} seed`);
+        error.code = VAULT_ERROR.RECORD_AUTH;
+        throw error;
+      }
+      return null;
+    }
+  }
+
+  return {seeds, dek};
+};
+
+const findStoredUser = async userName => {
+  const res = await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY);
+  const users = res ? JSON.parse(res) : {users: []};
+  return users.users ? users.users.find(n => n.id === userName) : null;
+};
+
+/**
+ * Checks the password and returns { seeds, user, dek }. `user` is the stored
+ * record (read now, not a cached copy). `dek` is the vault key of a v2 user
+ * and null for a legacy user. Rejects with "Incorrect password" after the
+ * usual delay.
+ */
+export const unlockUserVault = (pin, userName, alertOnFail = true, alertOnCorruptedSeed = false) =>
+  queueUserStorageWrite(async () => {
+    if (pin == null) {
+      if (alertOnFail) Alert.alert("Authentication Error", "Please enter a password")
+      throw new Error("Please enter a password");
+    }
+
+    const user = await findStoredUser(userName);
+    if (!user) {
+      if (alertOnFail) Alert.alert("Authentication Error", "Please select an existing user")
+      throw new Error("Please select an existing user");
+    }
+
+    const result = await readUserSeeds(pin, user);
+    if (result == null) {
+      await new Promise(resolve => setTimeout(resolve, INCORRECT_PASSWORD_DELAY_ERROR_MS));
+      if (alertOnFail) Alert.alert("Authentication Error", "Incorrect password");
+      throw new Error("Incorrect password");
+    }
+
+    const _decryptedSeeds = result.seeds;
+    let seedPotentiallyCorrupted = false;
+
+    // Legacy decryption is unauthenticated; password checks must not rewrite seeds.
+    for (const channel in _decryptedSeeds) {
+      if (_decryptedSeeds[channel]) {
+        try {
+          if (alertOnCorruptedSeed) {
+            seedPotentiallyCorrupted = (SUSPICIOUS_UNICODE_CHARACTER_TEST).test(_decryptedSeeds[channel])
+          }
+        } catch (e) {
+          Alert.alert("Authentication Error", "Internal authentication error.");
+        }
+      }
+    }
+
+    if (seedPotentiallyCorrupted) {
+      if (!user.hideSeedWarnings) {
+        Alert.alert(
+          "Possible Seed Corruption Detected",
+          "Non-standard characters were detected in your profile seed.\n\nIf your seed is a standard word-based phrase, or a WIF key, this could indicate that your seed data was corrupted, and may not match your seed backup.\n\nCheck your seed by going into Settings > Profile > Recover Seed. If it does not match your backup, create a new profile from your backup and send any funds on this profile to that new profile.\n\nYou can disable this warning in Profile > Settings."
+        );
+      }
+
+      store.dispatch(setShowHideSeedCorruptionSetting(true));
+    }
+
+    return {seeds: _decryptedSeeds, user, dek: result.dek};
+  });
+
+// Check user password. Resolves the decrypted seeds.
+export const checkPinForUser = async (pin, userName, alertOnFail = true, alertOnCorruptedSeed = false) => {
+  const {seeds, dek} = await unlockUserVault(pin, userName, alertOnFail, alertOnCorruptedSeed);
+  if (dek != null) dek.fill(0);
+  return seeds;
+};
+
+// ---------------------------------------------------------------------------
+// Migration of a legacy user to vault v2 (plan A4)
+
+export const VAULT_MIGRATION_ERROR = Object.freeze({
+  NOT_FOUND: 'VAULT_MIGRATION_NOT_FOUND',
+  NO_ACCOUNT_HASH: 'VAULT_MIGRATION_NO_ACCOUNT_HASH',
+  UNREADABLE: 'VAULT_MIGRATION_UNREADABLE',
+  MIXED: 'VAULT_MIGRATION_MIXED_RECORDS',
+  VERIFY: 'VAULT_MIGRATION_VERIFY_FAILED',
+  NOT_PROVEN: 'VAULT_MIGRATION_PASSWORD_NOT_PROVEN',
+  TOO_LARGE: 'VAULT_MIGRATION_TOO_LARGE',
+});
+
+// The journal holds the old and new copy of all three roots in one storage
+// row. Android AsyncStorage cannot read a row near its 2 MB cursor window, and
+// SecureStorage adds encryption overhead, so stay far below it.
+const VAULT_MIGRATION_JOURNAL_MAX_CHARS = 512 * 1024;
+
+const migrationError = (code, message) => {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+};
+
+// The vault migration and the password change write their prepared journal
+// through this check, before their first storage write.
+const serializePreparedJournal = journal => {
+  const journalString = JSON.stringify(journal);
+  if (journalString.length > VAULT_MIGRATION_JOURNAL_MAX_CHARS) {
+    throw migrationError(VAULT_MIGRATION_ERROR.TOO_LARGE, 'Migration journal too large');
+  }
+  return journalString;
+};
+
+// Decrypts every value of a legacy record with the password. Any value that
+// does not decrypt aborts the migration; nothing is written. `proof` records
+// whether one value passed the GCM tag check: the old CTR reader accepts a
+// wrong password when the output happens to look like text.
+const decryptLegacyRecord = (record, password, recordName, proof) => {
+  const plain = {};
+  for (const key of Object.keys(record)) {
+    const value = record[key];
+    if (value == null) continue;
+    if (typeof value !== 'string') {
+      throw migrationError(VAULT_MIGRATION_ERROR.UNREADABLE, `Invalid ${recordName} value`);
+    }
+    if (isV2Record(value)) {
+      throw migrationError(VAULT_MIGRATION_ERROR.MIXED, `A ${recordName} value is already v2`);
+    }
+    let decrypted = decryptkeyAuthenticated(password, value);
+    if (decrypted !== false) {
+      proof.authenticated = true;
+    } else {
+      decrypted = decryptkey(password, value);
+    }
+    if (decrypted === false) {
+      throw migrationError(VAULT_MIGRATION_ERROR.UNREADABLE, `A ${recordName} value does not decrypt`);
+    }
+    plain[key] = decrypted;
+  }
+  return plain;
+};
+
+const encryptPlainRecord = async (record, plain, dek, accountHash, area) => {
+  const next = {...record};
+  for (const key of Object.keys(plain)) {
+    next[key] = await encryptRecord(dek, plain[key], {accountHash, area, field: key});
+  }
+  return next;
+};
+
+const assertRecordMatches = (record, plain, dek, accountHash, area) => {
+  const encryptedKeys = Object.keys(record || {}).filter(key => record[key] != null);
+  if (encryptedKeys.length !== Object.keys(plain).length) {
+    throw migrationError(VAULT_MIGRATION_ERROR.VERIFY, 'Record count changed');
+  }
+  for (const key of encryptedKeys) {
+    let decrypted;
+    try {
+      decrypted = decryptRecord(dek, record[key], {accountHash, area, field: key});
+    } catch (_) {
+      decrypted = null;
+    }
+    if (!(key in plain) || decrypted !== plain[key]) {
+      throw migrationError(VAULT_MIGRATION_ERROR.VERIFY, 'A migrated record does not match');
+    }
+  }
+};
+
+const withoutAccount = (snapshot, accountHash) => {
+  const users = parseStoredObject(snapshot[USER_DATA_STORAGE_INTERNAL_KEY], 'user');
+  const personal = parseStoredObject(snapshot[PERSONAL_DATA_STORAGE_INTERNAL_KEY], 'personal data');
+  const service = parseStoredObject(snapshot[SERVICE_STORAGE_INTERNAL_KEY], 'service data');
+  delete personal[accountHash];
+  delete service[accountHash];
+  return JSON.stringify({
+    users: {
+      ...users,
+      users: (users.users || []).filter(user => user.accountHash !== accountHash),
+    },
+    personal,
+    service,
+  });
+};
+
+// Checks the exact strings that will be written: the vault key unwraps again
+// from the password with a fresh KDF run, every record decrypts to the legacy
+// plaintext, and nothing outside this account changed.
+const verifyMigrationSnapshot = async ({before, after, accountHash, password, dek, plain}) => {
+  const usersRecord = parseStoredObject(after[USER_DATA_STORAGE_INTERNAL_KEY], 'user');
+  const user = (usersRecord.users || []).find(candidate => candidate.accountHash === accountHash);
+  if (user == null || user.vault == null) {
+    throw migrationError(VAULT_MIGRATION_ERROR.VERIFY, 'The migrated user has no vault');
+  }
+
+  let checkDek;
+  try {
+    checkDek = await unwrapVaultKey(password, accountHash, user.vault);
+  } catch (_) {
+    throw migrationError(VAULT_MIGRATION_ERROR.VERIFY, 'The new vault does not open');
+  }
+  try {
+    if (!checkDek.equals(dek)) {
+      throw migrationError(VAULT_MIGRATION_ERROR.VERIFY, 'The new vault key does not match');
+    }
+    assertRecordMatches(user.encryptedKeys, plain.keys, checkDek, accountHash, RECORD_AREA.SEED);
+    const personal = parseStoredObject(after[PERSONAL_DATA_STORAGE_INTERNAL_KEY], 'personal data');
+    const service = parseStoredObject(after[SERVICE_STORAGE_INTERNAL_KEY], 'service data');
+    assertRecordMatches(personal[accountHash], plain.personal, checkDek, accountHash, RECORD_AREA.PERSONAL);
+    assertRecordMatches(service[accountHash], plain.service, checkDek, accountHash, RECORD_AREA.SERVICE);
+  } finally {
+    checkDek.fill(0);
+  }
+
+  if (withoutAccount(before, accountHash) !== withoutAccount(after, accountHash)) {
+    throw migrationError(VAULT_MIGRATION_ERROR.VERIFY, 'Data outside the account changed');
+  }
+};
+
+// Debug builds only: lets a device test kill the app at one stage of the
+// commit (see src/utils/vault/devMigrationPause.js). Release builds skip it.
+const reachStage = async stage => {
+  if (typeof __DEV__ === 'undefined' || !__DEV__) return;
+  const {MIGRATION_PAUSE_STAGE, MIGRATION_PAUSE_MS} = require('../vault/devMigrationPause');
+  if (MIGRATION_PAUSE_STAGE !== stage) return;
+  console.warn(`VAULT_MIGRATION_PAUSED ${stage}`);
+  await new Promise(resolve => setTimeout(resolve, MIGRATION_PAUSE_MS));
+};
+
+const migrateUserVaultTransaction = async (accountHash, password) => {
+  await recoverPasswordMigrationUnlocked();
+
+  const storedValues = await Promise.all(
+    PASSWORD_MIGRATION_KEYS.map(key => SecureStorage.getItem(key)),
+  );
+  const before = PASSWORD_MIGRATION_KEYS.reduce((snapshot, key, index) => {
+    snapshot[key] = storedValues[index];
+    return snapshot;
+  }, {});
+
+  const usersRecord = parseStoredObject(before[USER_DATA_STORAGE_INTERNAL_KEY], 'user');
+  const users = Array.isArray(usersRecord.users)
+    ? usersRecord.users.map(user => ({...user}))
+    : [];
+  const userIndex = accountHash == null
+    ? -1
+    : users.findIndex(user => user.accountHash === accountHash);
+  if (userIndex === -1) {
+    throw migrationError(VAULT_MIGRATION_ERROR.NOT_FOUND, 'User not found');
+  }
+
+  const user = users[userIndex];
+  if (user.vault != null) return {status: 'already', users: usersRecord.users};
+
+  const personalRecord = parseStoredObject(before[PERSONAL_DATA_STORAGE_INTERNAL_KEY], 'personal data');
+  const serviceRecord = parseStoredObject(before[SERVICE_STORAGE_INTERNAL_KEY], 'service data');
+
+  // 1. Read every legacy record with the password. Plaintext stays in memory.
+  const proof = {authenticated: false};
+  const plain = {
+    keys: decryptLegacyRecord(user.encryptedKeys || {}, password, 'account key', proof),
+    personal: personalRecord[accountHash] != null
+      ? decryptLegacyRecord(personalRecord[accountHash], password, 'personal data', proof)
+      : {},
+    service: serviceRecord[accountHash] != null
+      ? decryptLegacyRecord(serviceRecord[accountHash], password, 'service data', proof)
+      : {},
+  };
+  // Migrate only when the password is proven by a GCM tag. A wallet with only
+  // CTR-era records (or none) stays legacy, which still opens as before.
+  if (!proof.authenticated) {
+    throw migrationError(VAULT_MIGRATION_ERROR.NOT_PROVEN, 'No authenticated legacy record');
+  }
+
+  // 2. New vault key, wrapped by a new password key; every record under it.
+  const {vault, dek} = await createVault(password, accountHash);
+  let committed = false;
+  try {
+    user.encryptedKeys = await encryptPlainRecord(user.encryptedKeys || {}, plain.keys, dek, accountHash, RECORD_AREA.SEED);
+    user.vault = vault;
+    if (personalRecord[accountHash] != null) {
+      personalRecord[accountHash] = await encryptPlainRecord(personalRecord[accountHash], plain.personal, dek, accountHash, RECORD_AREA.PERSONAL);
+    }
+    if (serviceRecord[accountHash] != null) {
+      serviceRecord[accountHash] = await encryptPlainRecord(serviceRecord[accountHash], plain.service, dek, accountHash, RECORD_AREA.SERVICE);
+    }
+
+    const after = {
+      [USER_DATA_STORAGE_INTERNAL_KEY]: JSON.stringify({...usersRecord, users}),
+      [PERSONAL_DATA_STORAGE_INTERNAL_KEY]: before[PERSONAL_DATA_STORAGE_INTERNAL_KEY] == null &&
+        Object.keys(personalRecord).length === 0
+        ? null
+        : JSON.stringify(personalRecord),
+      [SERVICE_STORAGE_INTERNAL_KEY]: before[SERVICE_STORAGE_INTERNAL_KEY] == null &&
+        Object.keys(serviceRecord).length === 0
+        ? null
+        : JSON.stringify(serviceRecord),
+    };
+
+    // 3. Verify before commit. A mismatch aborts with nothing written.
+    await verifyMigrationSnapshot({before, after, accountHash, password, dek, plain});
+    await reachStage('verified');
+
+    // 4. The existing journal: prepared (with the old data), apply, committed.
+    const journal = {
+      version: PASSWORD_MIGRATION_VERSION,
+      accountHash,
+      phase: "prepared",
+      before,
+      after,
+    };
+    const journalString = serializePreparedJournal(journal);
+
+    try {
+      await SecureStorage.setItem(
+        PASSWORD_MIGRATION_STORAGE_INTERNAL_KEY,
+        journalString,
+      );
+      await reachStage('prepared');
+      let appliedRoots = 0;
+      await applyPasswordMigrationSnapshot(after, () =>
+        reachStage(`applied-${++appliedRoots}`),
+      );
+      await SecureStorage.setItem(
+        PASSWORD_MIGRATION_STORAGE_INTERNAL_KEY,
+        JSON.stringify(createCommittedJournalTombstone(journal)),
+      );
+      committed = true;
+      await reachStage('committed');
+    } catch (error) {
+      if (!committed) {
+        try {
+          await applyPasswordMigrationSnapshot(before);
+          await SecureStorage.removeItem(PASSWORD_MIGRATION_STORAGE_INTERNAL_KEY);
+        } catch (_) {
+          // Keep the prepared journal: startup recovery rolls back to `before`.
+          console.warn('Vault migration rollback deferred to the next start');
+        }
+        throw error;
+      }
+    }
+
+    try {
+      await SecureStorage.removeItem(PASSWORD_MIGRATION_STORAGE_INTERNAL_KEY);
+    } catch (_) {
+      // The roots are final. Startup recovery only removes the marker.
+      console.warn('Vault migration marker cleanup deferred to the next start');
+    }
+
+    const result = {status: 'migrated', users, user, dek: Buffer.from(dek)};
+    return result;
+  } finally {
+    dek.fill(0);
+  }
+};
+
+/**
+ * Moves a legacy user to vault v2 with the password that just unlocked it.
+ * Resolves { status: 'migrated', user, users, dek } or { status: 'already' }.
+ * Rejects with a coded error when the migration cannot run; the stored data
+ * is then the old data, unchanged, and the next unlock tries again.
+ */
+export const migrateUserVault = (accountHash, password) =>
+  queuePasswordProtectedStorageMigration(() =>
+    migrateUserVaultTransaction(accountHash, password),
+  );
+

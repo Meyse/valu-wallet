@@ -1,0 +1,35 @@
+{
+  "note": "Fixed test inputs; see scripts/make-vault-golden.js. Not a real wallet.",
+  "password": "golden test password",
+  "accountHash": "goldenaccounthash0001",
+  "dekHex": "3333333333333333333333333333333333333333333333333333333333333333",
+  "recordPlaintext": "abandon ability able about above absent absorb abstract absurd abuse access accident",
+  "vault": {
+    "v": 2,
+    "kdf": {
+      "id": "argon2id",
+      "ver": 19,
+      "m": 65536,
+      "t": 3,
+      "p": 1,
+      "salt": "EREREREREREREREREREREQ=="
+    },
+    "wrap": {
+      "id": "aes-256-gcm",
+      "nonce": "IiIiIiIiIiIiIiIi",
+      "ct": "3f2W1kIwIBZ6UEVrQBq9uTp3aPdVFkmCK/0AXMAcVlh36ZQveCue0LK+X511WZvp"
+    }
+  },
+  "recordBinding": {
+    "accountHash": "goldenaccounthash0001",
+    "area": "seed",
+    "field": "electrum"
+  },
+  "record": "v2.REREREREREREREREUfOl/K5p4UvB4M3+n+mzUXvufe9Avt0kkDryEnyOdOJyWdKZRBOTPVGqDcMIITkCFdezHJf187OhHuiUWLGslRhieNl884w40PIuPs7Y4m+lm86v8noV9XjLl7A1l1BkC/EZHg==",
+  "backup": {
+    "format": "valu-wallet-backup",
+    "header": "eyJ2IjoxLCJjcmVhdGVkQXQiOiIyMDI2LTExLTI2VDEyOjAwOjAwWiIsImJhY2t1cElkIjoiMDAxMTIyMzM0NDU1NjY3Nzg4OTlhYWJiY2NkZGVlZmYiLCJrZGYiOnsiaWQiOiJwYmtkZjItc2hhMjU2IiwiaXRlciI6NjAwMDAwLCJzYWx0IjoiVlZWVlZWVlZWVlZWVlZWVlZWVlZWUT09In0sImNpcGhlciI6eyJpZCI6ImFlcy0yNTYtZ2NtIiwibm9uY2UiOiJabVptWm1abVptWm1abVptIn19",
+    "ct": "me0tUtKVSbYgwNvD9OYxBGT7NyozJN0U9rkySKWvXTt5fZdvIdQ52qJwGa0r7rm0fq1ybSpeKnBTvLh/b/XEhhIGb8IIGgOvDW3JYTbxaig+JsikjloNqMAetXkI+/nAGrPVAq55GGiyj6YzVbUrCa32Oy7w9Vxjwj0aG3XJSZ7Tz27g"
+  },
+  "backupPlaintext": "{\"seed\":\"abandon ability able about above absent absorb abstract absurd abuse access accident\",\"channel\":\"electrum\"}"
+}

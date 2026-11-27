@@ -79,6 +79,7 @@ import {
   SET_COIN_SUB_WALLET,
   DISABLE_SELECT_DEFAULT_ACCOUNT,
   SET_SUPPRESS_UNLOCK_AUTO_BIOMETRICS,
+  SET_ACTIVE_ACCOUNT_PASSWORD_RULE,
   ADD_GOOD_SERVER,
   ADD_BAD_SERVER,
   SET_SECURE_LOADING_SUCCESS_DATA,
@@ -108,6 +109,14 @@ export const signIntoAuthenticatedAccount = () => {
 export const disableSelectDefaultAccount = () => {
   return { type: DISABLE_SELECT_DEFAULT_ACCOUNT }
 }
+
+// Reducer Name: authentication
+// passwordFailsRule: the active account's password is below the app password
+// rule (utils/auth/passwordRule.js). A screen can offer a password change.
+export const setActiveAccountPasswordRule = (passwordFailsRule) => ({
+  type: SET_ACTIVE_ACCOUNT_PASSWORD_RULE,
+  payload: {passwordFailsRule: passwordFailsRule === true},
+});
 
 // Reducer Name: authentication
 export const setSuppressUnlockAutoBiometrics = (suppress) => {

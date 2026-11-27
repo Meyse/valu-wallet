@@ -6,6 +6,7 @@ import {
 
 import { storeUser, getUsers, checkPinForUser, resetUserPwd, deleteUser } from '../../asyncStore/asyncStore'
 import { decryptkey } from '../../seedCrypt'
+import { openStoredSeed } from '../../../tests/helpers/vaultTestUtils'
 import store from '../../../store'
 import {AUTHENTICATE_USER} from '../../constants/storeType'
 import {SecureStorage} from '../../keychain/secureStore'
@@ -20,13 +21,13 @@ describe('Authentication data storage and retrieval', () => {
       password: MOCK_PIN,
       userName: id
     }, [])
-    .then(usersArray => {
+    .then(async usersArray => {
       const userObj = usersArray[0]
-      const { dlight_private, electrum } = userObj.encryptedKeys
 
       expect(userObj.id).toBe(MOCK_USER_OBJ.id)
-      expect(decryptkey(MOCK_PIN, electrum)).toBe(seeds.electrum)
-      expect(decryptkey(MOCK_PIN, dlight_private)).toBe(seeds.dlight_private)
+      // New users are stored as vault v2 records.
+      expect(await openStoredSeed(MOCK_PIN, userObj, 'electrum')).toBe(seeds.electrum)
+      expect(await openStoredSeed(MOCK_PIN, userObj, 'dlight_private')).toBe(seeds.dlight_private)
     })
   })
 

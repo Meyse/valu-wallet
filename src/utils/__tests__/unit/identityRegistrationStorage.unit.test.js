@@ -17,6 +17,7 @@ jest.mock('../../asyncStore/serviceStoredDataStorage', () => ({
 }));
 jest.mock('../../auth/authBox', () => ({
   requestPassword: jest.fn(async () => 'password'),
+  requestVaultKey: jest.fn(async () => ({password: 'password', dek: null})),
   requestServiceStoredData: jest.fn(async service =>
     JSON.parse(mockStoredData[service] || '{}')),
   requestSeeds: jest.fn(),
@@ -24,6 +25,8 @@ jest.mock('../../auth/authBox', () => ({
 jest.mock('../../seedCrypt', () => ({
   decryptkey: jest.fn((_password, value) => value),
   encryptkey: jest.fn(async (_password, value) => value),
+  vaultDecrypt: jest.fn((_vaultKey, value) => value),
+  vaultEncrypt: jest.fn(async (_vaultKey, value) => value),
 }));
 jest.mock('../../services/WyreProvider', () => ({
   __esModule: true, default: {reset: jest.fn()},

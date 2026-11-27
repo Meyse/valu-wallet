@@ -11,10 +11,12 @@ import {
   deleteUser,
   recoverPasswordMigration,
   resetUserPwd,
-  storeUser,
   updateUsers,
 } from '../../asyncStore/authDataStorage'
-import { decryptkey, encryptkey } from '../../seedCrypt'
+import { decryptkey, encryptkey, vaultEncrypt } from '../../seedCrypt'
+// Existing wallets on phones are legacy records; this suite covers their
+// password-reset journal.
+import { storeLegacyUser } from '../../../tests/helpers/legacyUserFixture'
 import {
   PASSWORD_MIGRATION_STORAGE_INTERNAL_KEY,
   SecureStorage,
@@ -65,12 +67,12 @@ const seedPasswordProtectedRecords = async () => {
     [CUSTOM_CHANNEL]: 'future channel seed',
   }
 
-  await storeUser({
+  await storeLegacyUser({
     seeds,
     password: MOCK_PIN,
     userName: MOCK_USER_OBJ.id,
     biometry: true,
-  }, [])
+  })
   await SecureStorage.setItem(
     PERSONAL_DATA_STORAGE_INTERNAL_KEY,
     JSON.stringify({
@@ -654,7 +656,7 @@ describe('password migration journal', () => {
     const personalRootBefore = await SecureStorage.getItem(
       PERSONAL_DATA_STORAGE_INTERNAL_KEY,
     )
-    const originalEncryptkey = encryptkey
+    const originalVaultEncrypt = vaultEncrypt
     let releaseEncryption
     let markEncryptionStarted
     const encryptionStarted = new Promise(resolve => {
@@ -665,16 +667,19 @@ describe('password migration journal', () => {
     })
     let delayedEncryption = false
 
-    jest.spyOn(authBox, 'requestPassword').mockResolvedValue(MOCK_PIN)
-    jest.spyOn(require('../../seedCrypt'), 'encryptkey').mockImplementation(
-      async (password, value) => {
+    // The dispatchers read the key through requestVaultKey and encrypt
+    // through vaultEncrypt (legacy account: dek is null, so the password
+    // encrypts as before).
+    jest.spyOn(authBox, 'requestVaultKey').mockResolvedValue({password: MOCK_PIN, dek: null})
+    jest.spyOn(require('../../seedCrypt'), 'vaultEncrypt').mockImplementation(
+      async (vaultKey, value) => {
         if (value === delayedValue && !delayedEncryption) {
           delayedEncryption = true
           markEncryptionStarted()
           await encryptionGate
         }
 
-        return originalEncryptkey(password, value)
+        return originalVaultEncrypt(vaultKey, value)
       },
     )
 
@@ -720,10 +725,10 @@ describe('password migration journal', () => {
         return users.map(user => ({...user}))
       })
     } else {
-      jest.spyOn(authBox, 'requestPassword').mockImplementation(async () => {
+      jest.spyOn(authBox, 'requestVaultKey').mockImplementation(async () => {
         markBackgroundStarted()
         await backgroundGate
-        return MOCK_PIN
+        return {password: MOCK_PIN, dek: null}
       })
 
       if (rootName === 'personal') {

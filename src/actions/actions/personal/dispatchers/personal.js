@@ -1,7 +1,8 @@
 import store from "../../../../store"
 import { deletePersonalDataForUser, loadPersonalDataForUser, storePersonalDataForUser } from "../../../../utils/asyncStore/personalDataStorage"
-import { requestPassword, requestPersonalData } from "../../../../utils/auth/authBox"
-import { encryptkey } from "../../../../utils/seedCrypt"
+import { requestPersonalData, requestVaultKey } from "../../../../utils/auth/authBox"
+import { vaultEncrypt } from "../../../../utils/seedCrypt"
+import { RECORD_AREA } from "../../../../utils/crypto/envelope"
 import { setPersonalData } from "../creators/personal"
 import { queuePersonalStorageWrite } from "../../../../utils/asyncStore/passwordProtectedStorageQueue"
 import {
@@ -41,7 +42,11 @@ export const modifyPersonalDataForUser = async (data = {}, dataType, accountHash
 
   return queuePersonalStorageWrite(async () => {
     let personalData = {...(await loadPersonalDataForUser(accountHash))}
-    personalData[dataType] = await encryptkey(await requestPassword(sessionScope), JSON.stringify(data))
+    personalData[dataType] = await vaultEncrypt(
+      await requestVaultKey(sessionScope),
+      JSON.stringify(data),
+      {accountHash, area: RECORD_AREA.PERSONAL, field: dataType},
+    )
     await saveEncryptedPersonalDataForUser(personalData, accountHash, sessionScope)
 
     return data
@@ -61,7 +66,11 @@ export const resetPersonalDataEncryptionForUser = async (accountHash, oldPwd) =>
       };
 
       const data = await requestPersonalData(key, oldPwd);
-      personalData[key] = await encryptkey(await requestPassword(sessionScope), JSON.stringify(data))
+      personalData[key] = await vaultEncrypt(
+        await requestVaultKey(sessionScope),
+        JSON.stringify(data),
+        {accountHash, area: RECORD_AREA.PERSONAL, field: key},
+      )
     }
 
     await saveEncryptedPersonalDataForUser(personalData, accountHash, sessionScope)

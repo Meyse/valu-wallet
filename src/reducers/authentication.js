@@ -24,7 +24,8 @@ import {
   INIT_INSTANCE_KEY,
   HIDE_SEED_WARNINGS,
   SET_SHOW_HIDE_SEED_CORRUPTION_SETTING,
-  SET_SUPPRESS_UNLOCK_AUTO_BIOMETRICS
+  SET_SUPPRESS_UNLOCK_AUTO_BIOMETRICS,
+  SET_ACTIVE_ACCOUNT_PASSWORD_RULE
 } from "../utils/constants/storeType";
 import {
   SERVICES_DISABLED_DEFAULT
@@ -161,6 +162,14 @@ export const authentication = (
             ? {...state.activeAccount, biometry: action.payload.biometry}
             : state.activeAccount,
         accounts: action.payload.accounts
+      };
+    case SET_ACTIVE_ACCOUNT_PASSWORD_RULE:
+      return {
+        ...state,
+        activeAccount: {
+          ...state.activeAccount,
+          passwordFailsRule: action.payload.passwordFailsRule,
+        },
       };
     case SET_SUPPRESS_UNLOCK_AUTO_BIOMETRICS:
       return {

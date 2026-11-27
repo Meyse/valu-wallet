@@ -4,13 +4,14 @@ import {
   loadServiceStoredDataForUser,
   storeServiceStoredDataForUser,
 } from "../../../../utils/asyncStore/serviceStoredDataStorage";
-import { requestPassword, requestServiceStoredData } from "../../../../utils/auth/authBox";
+import { requestServiceStoredData, requestVaultKey } from "../../../../utils/auth/authBox";
 import {
   CONNECTED_SERVICES,
   WYRE_SERVICE_ID,
   VALU_SERVICE_ID,
 } from "../../../../utils/constants/services";
-import { decryptkey, encryptkey } from "../../../../utils/seedCrypt";
+import { vaultDecrypt, vaultEncrypt } from "../../../../utils/seedCrypt";
+import { RECORD_AREA } from "../../../../utils/crypto/envelope";
 import WyreProvider from "../../../../utils/services/WyreProvider";
 import ValuProvider from "../../../../utils/services/ValuProvider";
 import { setServiceStored } from "../creators/services";
@@ -39,10 +40,14 @@ const assertOriginatingSessionCurrent = (sessionScope, requestContext) => {
   }
 };
 
-const decryptServiceData = (encryptedData, password, service) => {
+const decryptServiceData = (encryptedData, vaultKey, service, accountHash) => {
   if (encryptedData == null) return {};
 
-  const decrypted = decryptkey(password, encryptedData);
+  const decrypted = vaultDecrypt(vaultKey, encryptedData, {
+    accountHash,
+    area: RECORD_AREA.SERVICE,
+    field: service,
+  });
 
   if (decrypted === false) {
     throw new Error("Unable to decrypt service stored data for " + service);
@@ -108,20 +113,22 @@ export const modifyServiceStoredDataForUser = async (
       ...(await loadServiceStoredDataForUser(accountHash)),
     };
     assertOriginatingSessionCurrent(sessionScope, scopedRequestContext);
-    const password = await requestPassword();
+    const vaultKey = await requestVaultKey(scopedRequestContext);
     assertOriginatingSessionCurrent(sessionScope, scopedRequestContext);
     const currentData = decryptServiceData(
       serviceStoredData[service],
-      password,
+      vaultKey,
       service,
+      accountHash,
     );
     const nextData =
       typeof data === "function" ? await data(currentData) : data;
     assertOriginatingSessionCurrent(sessionScope, scopedRequestContext);
 
-    serviceStoredData[service] = await encryptkey(
-      password,
-      JSON.stringify(nextData)
+    serviceStoredData[service] = await vaultEncrypt(
+      vaultKey,
+      JSON.stringify(nextData),
+      {accountHash, area: RECORD_AREA.SERVICE, field: service},
     );
     assertOriginatingSessionCurrent(sessionScope, scopedRequestContext);
     await saveEncryptedServiceStoredDataForUser(
@@ -151,7 +158,11 @@ export const resetServicesStoredEncryptionForUser = async (
       };
 
       const data = await requestServiceStoredData(key, oldPwd);
-      serviceStoredData[key] = await encryptkey(await requestPassword(), JSON.stringify(data))
+      serviceStoredData[key] = await vaultEncrypt(
+        await requestVaultKey(),
+        JSON.stringify(data),
+        {accountHash, area: RECORD_AREA.SERVICE, field: key},
+      )
     }
 
     await saveEncryptedServiceStoredDataForUser(

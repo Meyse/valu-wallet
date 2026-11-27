@@ -1,12 +1,21 @@
 import store from "../../../../store"
-import { deleteAttestationDataForUser, loadAttestationDataForUser, storeAttestationDataForUser, clearCorruptedAttestationDataForUser } from "../../../../utils/nativeStore/attestationDataStorage"
-import { requestPassword } from "../../../../utils/auth/authBox"
-import { encryptkey, decryptkey } from "../../../../utils/seedCrypt"
+import { deleteAttestationDataForUser, loadAttestationDataForUser, storeAttestationDataForUser, storeAttestationFieldForUser, clearCorruptedAttestationDataForUser } from "../../../../utils/nativeStore/attestationDataStorage"
+import { requestVaultKey } from "../../../../utils/auth/authBox"
+import { vaultEncrypt, vaultDecrypt } from "../../../../utils/seedCrypt"
+import { RECORD_AREA } from "../../../../utils/crypto/envelope"
 import { setAttestationData } from "../creators/attestations"
 
 export const saveEncryptedAttestationDataForUser = async (encryptedData = {}, accountHash) => {  
   const attestationData = await storeAttestationDataForUser(encryptedData, accountHash)
   store.dispatch(setAttestationData(encryptedData))
+  return attestationData
+}
+
+// Writes only `field`: the rest of the record can change while the caller
+// waits (for example a password change converts a legacy record).
+const saveEncryptedAttestationFieldForUser = async (accountHash, field, value) => {
+  const attestationData = await storeAttestationFieldForUser(accountHash, field, value)
+  store.dispatch(setAttestationData(attestationData))
   return attestationData
 }
 
@@ -34,13 +43,17 @@ export const modifyAttestationDataForUser = async (data = {}, dataType, accountH
     }
     
     // Get password once and reuse it
-    const password = await requestPassword();
+    const vaultKey = await requestVaultKey();
     
     // Get existing data for this dataType and merge with new data
     let existingTypeData = {};
     if (attestationData[dataType]) {
       try {
-        const decryptedExisting = decryptkey(password, attestationData[dataType]);
+        const decryptedExisting = vaultDecrypt(vaultKey, attestationData[dataType], {
+          accountHash,
+          area: RECORD_AREA.ATTESTATION,
+          field: dataType,
+        });
         if (decryptedExisting !== false) {
           existingTypeData = JSON.parse(decryptedExisting);
         }
@@ -65,8 +78,12 @@ export const modifyAttestationDataForUser = async (data = {}, dataType, accountH
       throw new Error(`Data produces invalid JSON: ${parseError.message}`);
     }
     
-    attestationData[dataType] = await encryptkey(password, jsonString)
-    await saveEncryptedAttestationDataForUser(attestationData, accountHash)
+    const encrypted = await vaultEncrypt(vaultKey, jsonString, {
+      accountHash,
+      area: RECORD_AREA.ATTESTATION,
+      field: dataType,
+    })
+    await saveEncryptedAttestationFieldForUser(accountHash, dataType, encrypted)
 
     return mergedData
   } catch (error) {
@@ -93,7 +110,7 @@ export const replaceAttestationDataForUser = async (data = {}, dataType, account
     }
     
     // Get password once and reuse it
-    const password = await requestPassword();
+    const vaultKey = await requestVaultKey();
     
     // Add timestamps to attestations that don't have them
     const dataWithTimestamps = {};
@@ -135,8 +152,12 @@ export const replaceAttestationDataForUser = async (data = {}, dataType, account
       throw new Error(`Data produces invalid JSON: ${parseError.message}`);
     }
     
-    attestationData[dataType] = await encryptkey(password, jsonString)
-    await saveEncryptedAttestationDataForUser(attestationData, accountHash)
+    const encrypted = await vaultEncrypt(vaultKey, jsonString, {
+      accountHash,
+      area: RECORD_AREA.ATTESTATION,
+      field: dataType,
+    })
+    await saveEncryptedAttestationFieldForUser(accountHash, dataType, encrypted)
 
     return dataWithTimestamps
   } catch (error) {

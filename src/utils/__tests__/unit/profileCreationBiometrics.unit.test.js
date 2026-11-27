@@ -26,7 +26,7 @@ const {storeBiometricPassword} = require('../../keychain/biometrics');
 const {SecureStorage} = require('../../keychain/secureStore');
 const {deriveKeyPair} = require('../../keys');
 const {createProfileFromSeed} = require('../../profile/createProfileFromSeed');
-const {decryptkey} = require('../../seedCrypt');
+const {openStoredSeed} = require('../../../tests/helpers/vaultTestUtils');
 const {BIOMETRIC_AUTH} = require('../../constants/storeType');
 
 const profileName = 'Biometric import fixture';
@@ -127,7 +127,7 @@ describe('profile creation biometric setup', () => {
     expect(users).toHaveLength(1);
     expect(account).toEqual(users[0]);
     expect(account.biometry).toBe(false);
-    expect(decryptkey(password, account.encryptedKeys.electrum)).toBe(seed);
+    expect(await openStoredSeed(password, account, 'electrum')).toBe(seed);
     expect(initializeAccountData).toHaveBeenCalledWith(account, password);
     expect(dispatch.mock.calls.some(([action]) => action.type === BIOMETRIC_AUTH)).toBe(false);
   });
@@ -146,7 +146,7 @@ describe('profile creation biometric setup', () => {
     expect(storeBiometricPassword).toHaveBeenCalledTimes(1);
     expect(account.biometry).toBe(false);
     expect((await storedUsers())[0]).toEqual(account);
-    expect(decryptkey(password, account.encryptedKeys.electrum)).toBe(seed);
+    expect(await openStoredSeed(password, account, 'electrum')).toBe(seed);
     expect(initializeAccountData).toHaveBeenCalledWith(account, password);
   });
 
