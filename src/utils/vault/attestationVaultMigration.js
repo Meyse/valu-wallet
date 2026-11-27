@@ -10,15 +10,10 @@ import { loadAttestationData, updateAttestationData } from '../nativeStore/attes
 export const ATTESTATION_NOT_CONVERTED = 'VAULT_ATTESTATION_NOT_CONVERTED';
 
 // True when a record of this account still opens only with the password.
-// A file that does not read gives false: there is nothing the password can
-// still recover from it.
+// A read error rejects: the error can be brief, and the file can still hold
+// a legacy record. A missing file reads as empty.
 export const hasLegacyAttestationRecords = async (accountHash, password) => {
-  let all;
-  try {
-    all = await loadAttestationData();
-  } catch (_) {
-    return false;
-  }
+  const all = await loadAttestationData();
   const record = all?.[accountHash];
   if (record == null || typeof record !== 'object') return false;
   return Object.values(record).some(

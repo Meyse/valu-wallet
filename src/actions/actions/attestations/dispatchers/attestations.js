@@ -1,5 +1,5 @@
 import store from "../../../../store"
-import { deleteAttestationDataForUser, loadAttestationDataForUser, storeAttestationDataForUser, clearCorruptedAttestationDataForUser } from "../../../../utils/nativeStore/attestationDataStorage"
+import { deleteAttestationDataForUser, loadAttestationDataForUser, storeAttestationDataForUser, storeAttestationFieldForUser, clearCorruptedAttestationDataForUser } from "../../../../utils/nativeStore/attestationDataStorage"
 import { requestVaultKey } from "../../../../utils/auth/authBox"
 import { vaultEncrypt, vaultDecrypt } from "../../../../utils/seedCrypt"
 import { RECORD_AREA } from "../../../../utils/crypto/envelope"
@@ -8,6 +8,14 @@ import { setAttestationData } from "../creators/attestations"
 export const saveEncryptedAttestationDataForUser = async (encryptedData = {}, accountHash) => {  
   const attestationData = await storeAttestationDataForUser(encryptedData, accountHash)
   store.dispatch(setAttestationData(encryptedData))
+  return attestationData
+}
+
+// Writes only `field`: the rest of the record can change while the caller
+// waits (for example a password change converts a legacy record).
+const saveEncryptedAttestationFieldForUser = async (accountHash, field, value) => {
+  const attestationData = await storeAttestationFieldForUser(accountHash, field, value)
+  store.dispatch(setAttestationData(attestationData))
   return attestationData
 }
 
@@ -70,12 +78,12 @@ export const modifyAttestationDataForUser = async (data = {}, dataType, accountH
       throw new Error(`Data produces invalid JSON: ${parseError.message}`);
     }
     
-    attestationData[dataType] = await vaultEncrypt(vaultKey, jsonString, {
+    const encrypted = await vaultEncrypt(vaultKey, jsonString, {
       accountHash,
       area: RECORD_AREA.ATTESTATION,
       field: dataType,
     })
-    await saveEncryptedAttestationDataForUser(attestationData, accountHash)
+    await saveEncryptedAttestationFieldForUser(accountHash, dataType, encrypted)
 
     return mergedData
   } catch (error) {
@@ -144,12 +152,12 @@ export const replaceAttestationDataForUser = async (data = {}, dataType, account
       throw new Error(`Data produces invalid JSON: ${parseError.message}`);
     }
     
-    attestationData[dataType] = await vaultEncrypt(vaultKey, jsonString, {
+    const encrypted = await vaultEncrypt(vaultKey, jsonString, {
       accountHash,
       area: RECORD_AREA.ATTESTATION,
       field: dataType,
     })
-    await saveEncryptedAttestationDataForUser(attestationData, accountHash)
+    await saveEncryptedAttestationFieldForUser(accountHash, dataType, encrypted)
 
     return dataWithTimestamps
   } catch (error) {

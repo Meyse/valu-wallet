@@ -498,10 +498,14 @@ describe('attestation records', () => {
   const ATTEST = JSON.stringify({ claim: 'fixture attestation' });
   const ATTEST_BINDING = { accountHash: HASH, area: envelope.RECORD_AREA.ATTESTATION, field: 'attestations' };
 
-  const fakeAttestationFile = async (records, { failWrites = false } = {}) => {
+  const fakeAttestationFile = async (records, { failWrites = false, failReads = false } = {}) => {
     let file = { [HASH]: records, [OTHER_HASH]: { kept: 'other account value' } };
-    jest.spyOn(attestationStorage, 'loadAttestationData').mockImplementation(async () => file);
+    jest.spyOn(attestationStorage, 'loadAttestationData').mockImplementation(async () => {
+      if (failReads) throw new Error('Injected attestation read failure');
+      return file;
+    });
     jest.spyOn(attestationStorage, 'updateAttestationData').mockImplementation(async updater => {
+      if (failReads) throw new Error('Injected attestation read failure');
       const next = await updater({ ...file });
       if (next !== undefined) {
         if (failWrites) throw new Error('Injected attestation write failure');
@@ -538,6 +542,26 @@ describe('attestation records', () => {
 
     await expect(resetUserPwd(HASH, NEW_PW, PW)).resolves.not.toBe(false);
     expect(envelope.decryptRecord(dek, readFile()[HASH].attestations, ATTEST_BINDING)).toBe(ATTEST);
+  });
+
+  it('keeps the old password when the attestation file does not read', async () => {
+    await migrateUserVault(HASH, PW);
+    const legacy = await encryptkey(PW, ATTEST);
+    const readFile = await fakeAttestationFile({ attestations: legacy }, { failReads: true });
+    const user = parse(await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY)).users
+      .find(u => u.accountHash === HASH);
+    const sessionKey = await authBox.initSession(PW);
+    store.dispatch(authenticateUser({ ...user, vaultVersion: 2 }, sessionKey));
+    store.dispatch(signIntoAuthenticatedAccount());
+    const before = await readAll();
+    const calls = instrumentWrites();
+
+    // A read error can be brief; the legacy record may still be in the file.
+    await expect(resetUserPwd(HASH, NEW_PW, PW)).rejects.toThrow('Injected attestation read failure');
+    expect(calls).toEqual([]);
+    expect(await readAll()).toEqual(before);
+    expect(readFile()[HASH].attestations).toBe(legacy);
+    expect(await expectWalletOpens(PW)).toBe('v2');
   });
 
   it('keeps the old password when a legacy attestation cannot move to the vault key', async () => {

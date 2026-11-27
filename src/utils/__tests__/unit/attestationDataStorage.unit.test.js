@@ -24,6 +24,8 @@ jest.mock('react-native-randombytes', () => ({
   randomBytes: (length, cb) => cb(null, require('crypto').randomBytes(length)),
 }));
 
+jest.mock('../../auth/authBox', () => ({ requestVaultKey: jest.fn() }));
+
 const mockEnoent = path => Object.assign(new Error(`ENOENT: ${path}`), { code: 'ENOENT' });
 
 jest.mock('react-native-fs', () => ({
@@ -54,7 +56,9 @@ const {
   storeAttestationDataForUser,
 } = require('../../nativeStore/attestationDataStorage');
 const { convertLegacyAttestationRecords } = require('../../vault/attestationVaultMigration');
-const { encryptRecord, RECORD_AREA } = require('../../crypto/envelope');
+const { decryptRecord, encryptRecord, RECORD_AREA } = require('../../crypto/envelope');
+const { requestVaultKey } = require('../../auth/authBox');
+const { modifyAttestationDataForUser } = require('../../../actions/actions/attestations/dispatchers/attestations');
 const { encryptkey } = require('../../seedCrypt');
 
 const OLD = { a: { record: 'old a' }, b: { record: 'old b' } };
@@ -183,5 +187,28 @@ describe('attestation conversion to the vault key', () => {
     await converting;
 
     expect((await loadAttestationData())[HASH].newer).toBe('newer value');
+  });
+});
+
+describe('attestation writer', () => {
+  const HASH = 'fixture-account';
+  it('keeps a sibling field that changes while the writer waits for the vault key', async () => {
+    mockFiles.clear();
+    restart();
+    const dek = require('crypto').randomBytes(32);
+    const bind = field => ({ accountHash: HASH, area: RECORD_AREA.ATTESTATION, field });
+    await storeAttestationDataForUser({ attestations_provisioned: 'legacy sibling' }, HASH);
+    const converted = await encryptRecord(dek, 'sibling', bind('attestations_provisioned'));
+    requestVaultKey.mockImplementation(async () => {
+      // A password change converts the sibling while this write waits.
+      await storeAttestationDataForUser({ attestations_provisioned: converted }, HASH);
+      return { dek };
+    });
+
+    await modifyAttestationDataForUser({ x: 1 }, 'attestations', HASH);
+
+    const record = (await loadAttestationData())[HASH];
+    expect(record.attestations_provisioned).toBe(converted);
+    expect(JSON.parse(decryptRecord(dek, record.attestations, bind('attestations')))).toEqual({ x: 1 });
   });
 });

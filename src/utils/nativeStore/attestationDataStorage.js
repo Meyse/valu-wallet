@@ -214,6 +214,17 @@ export const storeAttestationDataForUser = async (data, accountHash) => {
   return stored[accountHash]
 }
 
+// Writes one field of one account inside the queued file operation, so a
+// change to another field after the caller's read is kept. Returns the
+// account's record as stored.
+export const storeAttestationFieldForUser = async (accountHash, field, value) => {
+  const stored = await updateAttestationData(all => ({
+    ...all,
+    [accountHash]: { ...(all[accountHash] || {}), [field]: value },
+  }))
+  return stored[accountHash]
+}
+
 export const deleteAttestationDataForUser = async (accountHash) => {
   await updateAttestationData(all => {
     delete all[accountHash]
