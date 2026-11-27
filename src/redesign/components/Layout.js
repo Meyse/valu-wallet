@@ -259,14 +259,15 @@ const RevealFocusedContext = createContext(null);
 
 // For a field inside a DenseScreen: call the returned function from onFocus. A short wait lets the
 // focus settle; a field that gets focus with the keyboard closed is shown by the keyboard move.
-export function useRevealOnFocus() {
+// extra: more room under the field, for something that belongs to it (the strength meter).
+export function useRevealOnFocus(extra = 0) {
   const reveal = useContext(RevealFocusedContext);
   const timer = useRef(null);
   useEffect(() => () => clearTimeout(timer.current), []);
   return useCallback(() => {
     clearTimeout(timer.current);
-    if (reveal) timer.current = setTimeout(reveal, 100);
-  }, [reveal]);
+    if (reveal) timer.current = setTimeout(() => reveal(extra), 100);
+  }, [reveal, extra]);
 }
 
 function DenseScreenIos({topBar, children, footer, scrollRef}) {
@@ -290,6 +291,7 @@ function DenseScreenIos({topBar, children, footer, scrollRef}) {
   marginNow.current = margin;
   const offset = useRef(0); // current scroll position
   const goal = useRef(0); // last position this screen scrolled to while the keyboard is open
+  const extraRoom = useRef(0); // the focused field's extra room (useRevealOnFocus)
   // Scrolls so the focused field shows in full above the button, and never higher than `base`.
   const fit = useCallback(base => {
     const visible = size.current.full - marginNow.current;
@@ -303,14 +305,18 @@ function DenseScreenIos({topBar, children, footer, scrollRef}) {
     if (!input || !content.current) return go(base);
     input.measureLayout(
       content.current,
-      (x, y, w, h) => go(Math.max(base, CONTENT_TOP + y + h + REVEAL_MARGIN - visible)),
+      (x, y, w, h) => go(Math.max(base, CONTENT_TOP + y + h + REVEAL_MARGIN + extraRoom.current - visible)),
       () => go(base),
     );
   }, []);
   // A field gets focus while the keyboard is open: show it, without moving the title back down.
-  const reveal = useCallback(() => {
-    if (marginNow.current > 0) fit(Math.max(offset.current, goal.current));
-  }, [fit]);
+  const reveal = useCallback(
+    extra => {
+      if (extra !== undefined) extraRoom.current = extra;
+      if (marginNow.current > 0) fit(Math.max(offset.current, goal.current));
+    },
+    [fit],
+  );
   // Keyboard opens: scroll the title to the top, as far as the content can scroll, and further
   // only when the focused field would sit under the button. After the scroll area has its smaller
   // size: a scroll while the content still fits does nothing.
@@ -397,19 +403,21 @@ function DenseScreenAndroid({topBar, children, footer, scrollRef}) {
   const scroll = useRef(null);
   const inner = useRef(null);
   const view = useRef({height: 0, y: 0});
+  const extraRoom = useRef(0); // the focused field's extra room (useRevealOnFocus)
   const setScroll = node => {
     scroll.current = node;
     if (typeof scrollRef === 'function') scrollRef(node);
     else if (scrollRef) scrollRef.current = node;
   };
   // The keyboard shrinks the scroll area: a field low on the screen then sits under the button.
-  const reveal = useCallback(() => {
+  const reveal = useCallback(extra => {
+    if (extra !== undefined) extraRoom.current = extra;
     const input = TextInput.State.currentlyFocusedInput?.();
     if (!input || !inner.current || !scroll.current) return;
     input.measureLayout(
       inner.current,
       (x, y, w, h) => {
-        const bottom = CONTENT_TOP + y + h + REVEAL_MARGIN;
+        const bottom = CONTENT_TOP + y + h + REVEAL_MARGIN + extraRoom.current;
         const {height, y: offset} = view.current;
         if (height > 0 && bottom > offset + height) scroll.current?.scrollTo({y: bottom - height, animated: true});
       },

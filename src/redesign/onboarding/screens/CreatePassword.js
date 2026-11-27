@@ -43,15 +43,21 @@ function Meter({strength}) {
           <View key={i} style={[styles.segment, i < m.filled && {backgroundColor: m.color}]} />
         ))}
       </View>
-      <Text style={[type.bodyStrong, styles.meterLabel, {color: m.color}]}>{strength.label}</Text>
+      <Text style={[type.bodyStrong, styles.meterLabel, {color: m.color}]} numberOfLines={1}>
+        {strength.label}
+      </Text>
     </View>
   );
 }
 
-function PasswordField({label, value, onChangeText, error, inputRef, onSubmit, onFocus, placeholder, returnKeyType, testID}) {
+// The meter row under the Password field: 8 above, one 18 line. The hint below it is the one-line
+// error that every reveal leaves room for.
+const METER_ROOM = 26;
+
+function PasswordField({label, value, onChangeText, error, inputRef, onSubmit, onFocus, placeholder, returnKeyType, revealExtra, testID}) {
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
-  const reveal = useRevealOnFocus();
+  const reveal = useRevealOnFocus(revealExtra);
   const border = error ? colors.error : focused ? colors.accent : colors.text;
   return (
     <View style={styles.group}>
@@ -138,6 +144,7 @@ export default function CreatePassword({navigation}) {
                 inputRef={first}
                 returnKeyType="next"
                 onSubmit={() => second.current?.focus()}
+                revealExtra={METER_ROOM}
                 testID="password-new"
               />
               <Meter strength={gate.strength} />
@@ -188,6 +195,7 @@ const styles = StyleSheet.create({
   meter: {flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4, paddingTop: 8},
   segments: {flex: 1, flexDirection: 'row', gap: 4},
   segment: {flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.progressTrack},
-  meterLabel: {width: 56, textAlign: 'right'},
+  // At a fixed width of 56, Android cut the "g" of "Strong" (round 4 QA). One line, at least 56.
+  meterLabel: {minWidth: 56, textAlign: 'right'},
   footnote: {color: colors.textSecondary, opacity: 0.6},
 });
