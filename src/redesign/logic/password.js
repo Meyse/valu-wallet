@@ -34,15 +34,22 @@ const estimator = () => {
 
 // The first check builds the word index (about 170 ms on Hermes). A screen with a password field
 // calls this after it arrives, so the first key does not wait for it. No user data is used.
+const NOT_A_PASSWORD = 'warm up';
 export const warmPasswordScorer = () => {
-  estimator().check('warm up', APP_WORDS);
+  estimator().check(NOT_A_PASSWORD, APP_WORDS);
 };
 
 // Unicode code points: an emoji such as a key counts as one (NIST SP 800-63B-4 counts the same way).
 const lengthOf = password => Array.from(password).length;
 
 // No cache: a cache would keep the last typed password in memory after the screen clears it.
-export const scorePassword = password => estimator().check(password, APP_WORDS).score;
+// zxcvbn-ts keeps the last checked text in its scoring object: check a fixed text after each
+// password, so the shared estimator holds no password between keys.
+export const scorePassword = password => {
+  const {score} = estimator().check(password, APP_WORDS);
+  estimator().check(NOT_A_PASSWORD, APP_WORDS);
+  return score;
+};
 
 // Level 0 = empty. 2 Weak, 3 Fair, 4 Good, 5 Strong (the meter and its colours).
 export const getPasswordStrength = (password, minScore = APP_PASSWORD_MIN_SCORE) => {
