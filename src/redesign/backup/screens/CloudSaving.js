@@ -19,7 +19,7 @@ import Icon from '../../components/Icon';
 import {colors, type} from '../../theme/tokens';
 import {newBackupId, saveCloudBackup} from '../../../utils/cloudBackup/cloudBackup';
 import {cloudErrorKind} from '../../../utils/cloudBackup/cloudErrors';
-import {markBackedUp, readBackup, rememberCloudBackupId} from '../../state/backupState';
+import {markBackedUp, readBackupStrict, rememberCloudBackupId} from '../../state/backupState';
 import {useBackup} from '../BackupContext';
 import BackupDone from './BackupDone';
 
@@ -71,7 +71,7 @@ export default function CloudSaving({navigation}) {
     running.current = true;
     setPhase('saving');
     try {
-      const record = await readBackup(accountHash);
+      const record = await readBackupStrict(accountHash);
       const backupId = record?.cloudBackupId ?? (await newBackupId());
       if (!record?.cloudBackupId) await rememberCloudBackupId(accountHash, backupId);
       await saveCloudBackup({store: cloud.store, seed: job.seed, password: job.password, backupId});

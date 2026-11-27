@@ -6,6 +6,7 @@ import {
   markBackedUp,
   markFundsSheetShown,
   readBackup,
+  readBackupStrict,
   recordNeedsBackup,
   recordRestoredCloudBackup,
   rememberCloudBackupId,
@@ -69,6 +70,14 @@ describe('cloud backup record', () => {
     AsyncStorage.getItem.mockRejectedValueOnce(new Error('read failed'));
     await expect(rememberCloudBackupId('cloud3', ID)).rejects.toThrow('read failed');
     expect(await readBackup('cloud3')).toEqual({needsBackup: true, fundsSheetShown: false});
+  });
+
+  it('the strict read used by the save throws on a read error instead of saying "no record"', async () => {
+    await recordNeedsBackup('cloud5');
+    await rememberCloudBackupId('cloud5', ID);
+    AsyncStorage.getItem.mockRejectedValueOnce(new Error('read failed'));
+    await expect(readBackupStrict('cloud5')).rejects.toThrow('read failed');
+    expect((await readBackupStrict('cloud5')).cloudBackupId).toBe(ID);
   });
 
   it('a restored wallet has a backup and the id of its file', async () => {

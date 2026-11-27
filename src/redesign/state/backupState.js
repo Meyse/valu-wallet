@@ -28,6 +28,13 @@ export async function readBackup(accountHash) {
   }
 }
 
+// The cloud save reads with this one: a read error must not look like "no file id yet" (a new id
+// then makes a second backup file).
+export async function readBackupStrict(accountHash) {
+  const raw = await AsyncStorage.getItem(keyFor(accountHash));
+  return raw ? JSON.parse(raw) : null;
+}
+
 // A read error throws and writes nothing: a partial record would drop needsBackup and end the
 // reminder for good.
 async function update(accountHash, change) {

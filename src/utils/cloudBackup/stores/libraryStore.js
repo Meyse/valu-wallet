@@ -31,9 +31,11 @@ const toCloudError = error => {
     case 'ERR_FILE_NOT_FOUND':
       return new CloudError(CLOUD_ERROR.NOT_FOUND);
     case 'ERR_DIRECTORY_NOT_FOUND':
-    case 'ERR_AUTHENTICATION_FAILED':
     case 'ERR_ACCESS_TOKEN_MISSING':
       return new CloudError(CLOUD_ERROR.OFF);
+    // Drive HTTP 401 (a token Google no longer accepts): a new try asks for a new token.
+    case 'ERR_AUTHENTICATION_FAILED':
+      return new CloudError(CLOUD_ERROR.UNREACHABLE);
     case 'ERR_UNSUPPORTED_PLATFORM':
       return new CloudError(CLOUD_ERROR.UNSUPPORTED);
     default:
@@ -56,6 +58,28 @@ const loadLibrary = () => {
     return null;
   }
 };
+
+// Polls the upload state of one iCloud file ({uploaded, uploading, failed}) until it is uploaded
+// and no newer copy is uploading. A failed upload or the time limit: UNREACHABLE.
+export async function waitForUpload(
+  readState,
+  {timeoutMs = ICLOUD_UPLOAD_WAIT_MS, pollMs = ICLOUD_UPLOAD_POLL_MS, now = Date.now, pause = wait} = {},
+) {
+  const end = now() + timeoutMs;
+  for (;;) {
+    let state = null;
+    try {
+      state = await readState();
+    } catch (e) {
+      state = null;
+    }
+    // A replace: "uploaded" can still describe the old copy while the new one uploads.
+    if (state?.failed) throw new CloudError(CLOUD_ERROR.UNREACHABLE, 'The backup did not upload');
+    if (state?.uploaded && !state.uploading) return;
+    if (now() >= end) throw new CloudError(CLOUD_ERROR.UNREACHABLE, 'The backup did not upload');
+    await pause(pollMs);
+  }
+}
 
 function libraryStore({kind, storage, ready, readRetry, confirmUploaded}) {
   return {
@@ -95,7 +119,9 @@ export function icloudStore() {
         return await storage().readFile(name);
       } catch (e) {
         const code = e?.code;
-        if (i >= ICLOUD_READ_TRIES || (code !== 'ERR_FILE_NOT_DOWNLOADABLE' && code !== 'ERR_READ_ERROR')) throw e;
+        // A listed file that is not on this phone yet can also read as "not found".
+        const retry = code === 'ERR_FILE_NOT_DOWNLOADABLE' || code === 'ERR_READ_ERROR' || code === 'ERR_FILE_NOT_FOUND';
+        if (i >= ICLOUD_READ_TRIES || !retry) throw e;
         try {
           await storage().triggerSync(name);
         } catch (_) {
@@ -107,23 +133,10 @@ export function icloudStore() {
   };
   // Resolves only when iCloud says the file is uploaded. Without the native module, or when the
   // upload fails or takes too long: UNREACHABLE, and the backup is not marked done.
-  const confirmUploaded = async name => {
+  const confirmUploaded = name => {
     const status = NativeModules.ValuICloudStatus;
-    if (!status?.uploadState) throw new CloudError(CLOUD_ERROR.UNREACHABLE, 'No upload status');
-    const end = Date.now() + ICLOUD_UPLOAD_WAIT_MS;
-    for (;;) {
-      let state = null;
-      try {
-        state = await status.uploadState(name);
-      } catch (e) {
-        state = null;
-      }
-      if (state?.uploaded) return;
-      if (state?.failed || Date.now() >= end) {
-        throw new CloudError(CLOUD_ERROR.UNREACHABLE, 'The backup did not upload');
-      }
-      await wait(ICLOUD_UPLOAD_POLL_MS);
-    }
+    if (!status?.uploadState) return Promise.reject(new CloudError(CLOUD_ERROR.UNREACHABLE, 'No upload status'));
+    return waitForUpload(() => status.uploadState(name));
   };
   return libraryStore({kind: 'icloud', storage, ready, readRetry, confirmUploaded});
 }
@@ -151,6 +164,8 @@ export function driveStore() {
         scope: lib.CloudStorageScope.AppData,
         accessToken: token,
         timeout: DRIVE_TIMEOUT_MS,
+        // Two Drive files with one name: an error, never the first one by Drive id.
+        strictFilenames: true,
       });
     }
     return instance;

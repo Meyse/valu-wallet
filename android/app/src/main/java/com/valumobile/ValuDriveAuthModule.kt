@@ -25,7 +25,9 @@ import com.google.android.gms.common.api.Scope
 class ValuDriveAuthModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
 
-  private var pending: Promise? = null
+  // The one open request, reserved before authorize() and released on every path, so a second
+  // call cannot overwrite it.
+  @Volatile private var pending: Promise? = null
 
   private val listener =
     object : BaseActivityEventListener() {
@@ -68,13 +70,14 @@ class ValuDriveAuthModule(reactContext: ReactApplicationContext) :
       promise.reject(UNAVAILABLE, "A request is already open")
       return
     }
+    pending = promise
     val request = AuthorizationRequest.builder().setRequestedScopes(listOf(Scope(scope))).build()
     Identity.getAuthorizationClient(activity)
       .authorize(request)
       .addOnSuccessListener { result ->
         val intent = result.pendingIntent
         if (result.hasResolution() && intent != null) {
-          pending = promise
+          // Stays reserved until onActivityResult.
           try {
             activity.startIntentSenderForResult(intent.intentSender, REQUEST_CODE, null, 0, 0, 0, null)
           } catch (e: Exception) {
@@ -82,10 +85,14 @@ class ValuDriveAuthModule(reactContext: ReactApplicationContext) :
             promise.reject(UNAVAILABLE, "Could not open the Google consent screen")
           }
         } else {
+          pending = null
           finish(result, promise)
         }
       }
-      .addOnFailureListener { promise.reject(UNAVAILABLE, "Google did not give access") }
+      .addOnFailureListener {
+        pending = null
+        promise.reject(UNAVAILABLE, "Google did not give access")
+      }
   }
 
   private fun finish(result: AuthorizationResult, promise: Promise) {

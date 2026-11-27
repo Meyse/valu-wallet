@@ -14,7 +14,7 @@ import {
   sealBackupFile,
 } from '../crypto/envelope';
 import {randomBytes} from '../crypto/randomBytes';
-import {VaultError, VAULT_ERROR} from '../crypto/vaultErrors';
+import {isVaultError, VaultError, VAULT_ERROR} from '../crypto/vaultErrors';
 import {CloudError, CLOUD_ERROR, isCloudError} from './cloudErrors';
 
 const FILE_PREFIX = 'valu-backup-';
@@ -132,13 +132,15 @@ export async function findLatestCloudBackup(store) {
   let best = null;
   let parseError = null;
   let readError = null;
+  let newerFormat = null;
   for (const id of ids) {
     let text;
     try {
       text = await store.read(backupFileName(id));
     } catch (e) {
       if (isCloudError(e, CLOUD_ERROR.CANCELLED)) throw e;
-      if (!isCloudError(e, CLOUD_ERROR.NOT_FOUND)) readError = storeError(e, CLOUD_ERROR.UNREACHABLE);
+      // Listed but not readable (also "not found": an iCloud file that is not downloaded yet).
+      readError = isCloudError(e, CLOUD_ERROR.NOT_FOUND) ? new CloudError(CLOUD_ERROR.UNREACHABLE) : storeError(e, CLOUD_ERROR.UNREACHABLE);
       continue;
     }
     try {
@@ -152,11 +154,15 @@ export async function findLatestCloudBackup(store) {
       if (!ID_RE.test(header.backupId ?? '')) throw damaged();
       if (!best || createdTime(header) > createdTime(best.header)) best = {file, header};
     } catch (e) {
+      if (isVaultError(e, VAULT_ERROR.UNSUPPORTED)) newerFormat = e;
       parseError = e;
     }
   }
   // A file that did not read can be the newest: never offer an older backup in its place.
   if (readError) throw readError;
+  // A file from a newer app has no date this app can read, and it can be the newest: ask for the
+  // update instead of offering an older backup.
+  if (newerFormat) throw newerFormat;
   if (best) {
     return {file: best.file, backupId: best.header.backupId, createdAt: best.header.createdAt};
   }

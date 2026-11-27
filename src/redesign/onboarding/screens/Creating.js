@@ -85,6 +85,9 @@ export default function Creating({navigation}) {
       // Create path: the "not backed up" record first (a failed write stops here, before any
       // wallet exists), then a new phrase for this attempt only. It is never put in shared state.
       if (ob.path === 'create') await recordNeedsBackup(accountHash);
+      // Cloud restore: the id of the backup file first, so a later cloud backup replaces that file
+      // (a failed write stops here, before any wallet exists).
+      if (ob.path === 'import' && ob.cloudBackupId) await recordRestoredCloudBackup(accountHash, ob.cloudBackupId);
       const seed = ob.path === 'create' ? await getKey(256) : ob.secret;
       const state = store.getState();
       await createProfileFromSeed({
@@ -104,11 +107,8 @@ export default function Creating({navigation}) {
       });
       await recordWalletMade(accountHash, ob.path === 'import' ? 'imported' : 'created');
       // An imported wallet already has a backup (the words, key, QR code or chip): no reminder.
-      // A wallet from the cloud keeps the id of its backup file: a later cloud backup replaces that
-      // file. If this write fails, the wallet stays as made; a later backup then adds a new file.
-      if (ob.path === 'import' && ob.cloudBackupId) {
-        await recordRestoredCloudBackup(accountHash, ob.cloudBackupId).catch(() => clearBackupRecord(accountHash));
-      } else if (ob.path === 'import') await clearBackupRecord(accountHash);
+      // A wallet from the cloud keeps its record (written above).
+      if (ob.path === 'import' && !ob.cloudBackupId) await clearBackupRecord(accountHash);
       // The phrase and the password are encrypted and stored now: drop the plain copies.
       dropSecrets();
       // After an import, the phrase or key screen is removed by dropSecrets: open the sheet after it.

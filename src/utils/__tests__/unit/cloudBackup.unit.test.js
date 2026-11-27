@@ -15,6 +15,7 @@ import {
 } from '../../cloudBackup/cloudBackup';
 import { CloudError, CLOUD_ERROR, cloudErrorKind } from '../../cloudBackup/cloudErrors';
 import { resolveCloudStore } from '../../cloudBackup/store';
+import { waitForUpload } from '../../cloudBackup/stores/libraryStore';
 
 // Real randomness: the global Jest setup returns zero bytes.
 jest.mock('react-native-randombytes', () => ({
@@ -304,6 +305,25 @@ describe('restore error mapping', () => {
     await expect(findLatestCloudBackup(cancelled)).rejects.toMatchObject({ code: CLOUD_ERROR.CANCELLED });
   });
 
+  it('a listed file that does not read is "unreachable", not skipped', async () => {
+    const { store } = await saved();
+    const listedGone = {
+      list: async () => [backupFileName(ID_A), backupFileName(ID_B)],
+      read: async name => {
+        if (name === backupFileName(ID_B)) throw new CloudError(CLOUD_ERROR.NOT_FOUND);
+        return store.read(name);
+      },
+    };
+    await expect(findLatestCloudBackup(listedGone)).rejects.toMatchObject({ code: CLOUD_ERROR.UNREACHABLE });
+  });
+
+  it('asks for an app update when a file is from a newer app, also next to an older valid backup', async () => {
+    const { store, fs } = await saved();
+    const header = Buffer.from(JSON.stringify({ v: 99, createdAt: '2026-12-01T10:00:00Z', backupId: ID_B })).toString('base64url');
+    fs.files.set(`/cloud/${backupFileName(ID_B)}`, JSON.stringify({ format: 'valu-wallet-backup', header, ct: 'AAAA' }));
+    expect(cloudErrorKind(await findLatestCloudBackup(store).catch(e => e))).toBe('update-app');
+  });
+
   it('no backup file is "no-backup", other files are ignored', async () => {
     const { store, fs } = newStore();
     expect(cloudErrorKind(await findLatestCloudBackup(store).catch(e => e))).toBe('no-backup');
@@ -330,6 +350,34 @@ describe('restore error mapping', () => {
       const error = await openCloudBackup(await findLatestCloudBackup(store), PASSWORD).catch(e => e);
       expect(cloudErrorKind(error)).toBe('damaged');
     }
+  });
+});
+
+describe('iCloud upload wait', () => {
+  const fastClock = () => {
+    let t = 0;
+    return { now: () => t, pause: async ms => { t += ms; } };
+  };
+  const states = list => {
+    let i = 0;
+    return async () => list[Math.min(i++, list.length - 1)];
+  };
+
+  it('waits while a newer copy uploads, then resolves when it is uploaded', async () => {
+    const read = jest.fn(states([
+      { uploaded: true, uploading: true, failed: false },
+      { uploaded: false, uploading: true, failed: false },
+      { uploaded: true, uploading: false, failed: false },
+    ]));
+    await waitForUpload(read, { timeoutMs: 10000, pollMs: 1000, ...fastClock() });
+    expect(read).toHaveBeenCalledTimes(3);
+  });
+
+  it('fails on an upload error, also when the old copy is uploaded, and after the time limit', async () => {
+    await expect(waitForUpload(states([{ uploaded: true, uploading: false, failed: true }]), { ...fastClock() }))
+      .rejects.toMatchObject({ code: CLOUD_ERROR.UNREACHABLE });
+    await expect(waitForUpload(states([{ uploaded: false, uploading: true, failed: false }]), { timeoutMs: 5000, pollMs: 1000, ...fastClock() }))
+      .rejects.toMatchObject({ code: CLOUD_ERROR.UNREACHABLE });
   });
 });
 
