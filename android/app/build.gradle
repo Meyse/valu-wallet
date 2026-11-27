@@ -212,6 +212,9 @@ dependencies {
 
     implementation 'com.google.mlkit:barcode-scanning:17.3.0'
 
+    // ValuDriveAuthModule: AuthorizationClient for the Google Drive app data folder (cloud backup).
+    implementation 'com.google.android.gms:play-services-auth:21.3.0'
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {

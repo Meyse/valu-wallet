@@ -23,6 +23,7 @@ public class MainApplication extends Application implements ReactApplication {
       packages.add(new VerusKeepAwakePackage());
       packages.add(new VerusBiometricEnrollmentPackage());
       packages.add(new VerusSecureWindowPackage());
+      packages.add(new ValuDriveAuthPackage());
       // Arguments: context, packages, JS main module, bundle asset, bundle file, JS runtime
       // (null selects Hermes), developer support, C++ packages, exception handler, bindings.
       mReactHost =
