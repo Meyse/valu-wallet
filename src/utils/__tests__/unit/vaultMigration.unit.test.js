@@ -378,6 +378,26 @@ describe('vault v2 accounts', () => {
     await expect(resetUserPwd(HASH, NEW_PW, 'wrong password')).resolves.toBe(false);
     expect(await readAll()).toEqual(before);
   });
+  it('writes nothing when the password change journal would be too large', async () => {
+    const { dek } = await migrateUserVault(HASH, PW);
+    // Each root fits one storage row; the journal holds two copies of all three.
+    const service = parse(await SecureStorage.getItem(SERVICE_STORAGE_INTERNAL_KEY));
+    service[HASH].big = await envelope.encryptRecord(dek, 'x'.repeat(300 * 1024));
+    await SecureStorage.setItem(SERVICE_STORAGE_INTERNAL_KEY, JSON.stringify(service));
+    const user = parse(await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY)).users
+      .find(u => u.accountHash === HASH);
+    const sessionKey = await authBox.initSession(PW);
+    store.dispatch(authenticateUser({ ...user, vaultVersion: 2 }, sessionKey));
+    store.dispatch(signIntoAuthenticatedAccount());
+    const before = await readAll();
+    const calls = instrumentWrites();
+
+    await expect(resetUserPwd(HASH, NEW_PW, PW))
+      .rejects.toMatchObject({ code: VAULT_MIGRATION_ERROR.TOO_LARGE });
+    expect(calls).toEqual([]);
+    expect(await readAll()).toEqual(before);
+    expect(await expectWalletOpens(PW)).toBe('v2');
+  });
 });
 
 describe('unlock (password and biometric login share validateLogin)', () => {
@@ -399,6 +419,20 @@ describe('unlock (password and biometric login share validateLogin)', () => {
     expect(await readAll()).toEqual(before);
   });
 
+  it('opens no legacy session while a failed migration journal is pending', async () => {
+    const account = parse(await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY)).users
+      .find(u => u.accountHash === HASH);
+    // Write 1 fails and so does the rollback: the prepared journal stays.
+    // Writes made by a session now would be lost by the next startup recovery.
+    instrumentWrites(index => index >= 1);
+    await expect(validateLogin(account, PW, true, false)).rejects.toThrow();
+    jest.restoreAllMocks();
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await recoverPasswordMigration();
+    expect(await expectWalletOpens()).toBe('legacy');
+  });
+
   it('keeps the wallet usable when the migration fails', async () => {
     const before = await readAll();
     const account = parse(before[USER_DATA_STORAGE_INTERNAL_KEY]).users.find(u => u.accountHash === HASH);
@@ -417,10 +451,10 @@ describe('attestation records', () => {
 
   const fakeAttestationFile = async records => {
     let file = { [HASH]: records, [OTHER_HASH]: { kept: 'other account value' } };
-    jest.spyOn(attestationStorage, 'loadAttestationData').mockImplementation(async () => file);
-    jest.spyOn(attestationStorage, 'storeAttestationDataForUser').mockImplementation(async (data, hash) => {
-      file = { ...file, [hash]: data };
-      return data;
+    jest.spyOn(attestationStorage, 'updateAttestationData').mockImplementation(async updater => {
+      const next = await updater({ ...file });
+      if (next !== undefined) file = next;
+      return next;
     });
     return () => file;
   };

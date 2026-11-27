@@ -18,6 +18,8 @@ import {
   updateUsers,
   unlockUserVault,
   migrateUserVault,
+  recoverPasswordMigration,
+  getUsers,
 } from '../../utils/asyncStore/asyncStore';
 import {passwordFailsRule} from '../../utils/auth/passwordRule';
 import {convertLegacyAttestationRecords} from '../../utils/vault/attestationVaultMigration';
@@ -538,33 +540,52 @@ export const authenticateAccount = async (
   });
 };
 
-// Moves a legacy account to vault v2 after a successful unlock. A failure
-// never blocks the unlock: the stored data is still the old data, and the next
-// unlock tries again. Only the error code is logged.
+// Moves a legacy account to vault v2 after a successful unlock. A failed
+// migration does not block the unlock when storage is settled: no journal is
+// left and the stored account reads with the password. A pending journal, or
+// an account that no longer reads, ends the unlock with an error, because a
+// session on stale data could write records that the next start rolls back.
+// Only the error code is logged.
 const migrateAfterUnlock = async (user, password) => {
   if (user.vault != null) return null;
   if (user.accountHash == null) {
     console.warn('Vault migration skipped: VAULT_MIGRATION_NO_ACCOUNT_HASH');
     return null;
   }
+
+  let result;
   try {
-    const result = await migrateUserVault(user.accountHash, password);
-    // Debug builds: device checks read this line from the log.
-    if (__DEV__) console.log(`VAULT_MIGRATION ${result.status}`);
-    if (result.status === 'already') {
-      // Another unlock migrated this user after our read. Read it again so the
-      // session uses the stored v2 records and the vault key.
-      const again = await unlockUserVault(password, user.id, false, false);
-      store.dispatch(setAccounts(result.users));
-      return {user: again.user, dek: again.dek};
-    }
-    if (result.status !== 'migrated') return null;
-    store.dispatch(setAccounts(result.users));
-    return result;
+    result = await migrateUserVault(user.accountHash, password);
   } catch (error) {
     console.warn(`Vault migration failed: ${error?.code || error?.name || 'unknown'}`);
-    return null;
+    return readSettledAccount(user, password);
   }
+
+  // Debug builds: device checks read this line from the log.
+  if (__DEV__) console.log(`VAULT_MIGRATION ${result.status}`);
+  if (result.status === 'already') {
+    // Another unlock migrated this user after our read. Read it again so the
+    // session uses the stored v2 records and the vault key. A read error ends
+    // the unlock: the legacy copy in hand is stale.
+    const again = await unlockUserVault(password, user.id, false, false);
+    store.dispatch(setAccounts(result.users));
+    return {user: again.user, dek: again.dek};
+  }
+  if (result.status !== 'migrated') return null;
+  store.dispatch(setAccounts(result.users));
+  return result;
+};
+
+// After a failed migration: finish any pending recovery (it throws when the
+// journal stays), then read the stored account again with the password.
+const readSettledAccount = async (user, password) => {
+  await recoverPasswordMigration();
+  const again = await unlockUserVault(password, user.id, false, false);
+  if (again.user.vault != null) {
+    // Another unlock committed the migration meanwhile.
+    store.dispatch(setAccounts(await getUsers()));
+  }
+  return {user: again.user, dek: again.dek};
 };
 
 export const validateLogin = async (

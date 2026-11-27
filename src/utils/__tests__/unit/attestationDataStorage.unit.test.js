@@ -18,6 +18,11 @@ const mockFsOp = (op, run) => async (...args) => {
   return run(...args);
 };
 
+// Real randomness: the global Jest setup returns zero bytes synchronously.
+jest.mock('react-native-randombytes', () => ({
+  randomBytes: (length, cb) => cb(null, require('crypto').randomBytes(length)),
+}));
+
 const mockEnoent = path => Object.assign(new Error(`ENOENT: ${path}`), { code: 'ENOENT' });
 
 jest.mock('react-native-fs', () => ({
@@ -43,7 +48,11 @@ jest.mock('react-native-fs', () => ({
 const {
   loadAttestationData,
   storeAttestationData,
+  storeAttestationDataForUser,
 } = require('../../nativeStore/attestationDataStorage');
+const { convertLegacyAttestationRecords } = require('../../vault/attestationVaultMigration');
+const { encryptRecord } = require('../../crypto/envelope');
+const { encryptkey } = require('../../seedCrypt');
 
 const OLD = { a: { record: 'old a' }, b: { record: 'old b' } };
 const NEW = { a: { record: 'new a' }, b: { record: 'old b' } };
@@ -107,5 +116,60 @@ describe('attestation file replace', () => {
       await storeAttestationData(NEW);
       expect(await loadAttestationData()).toEqual(NEW);
     }
+  });
+});
+
+// Vault v2 moves legacy attestation records to the vault key. The legacy
+// copy must not survive in a stale backup, and the conversion must not undo
+// a write that lands while it runs.
+describe('attestation conversion to the vault key', () => {
+  const HASH = 'fixture-account';
+  const PW = 'fixture password';
+  const DEK = Buffer.alloc(32, 7);
+  const ATTEST = JSON.stringify({ claim: 'fixture attestation' });
+  const livePath = () => [...mockFiles.keys()].find(p => p.endsWith('.txt'));
+  const backupPath = () => `${livePath()}.bak`;
+
+  beforeEach(() => {
+    mockFiles.clear();
+    mockFailAt = null;
+    mockKilled = false;
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('removes a stale backup that holds the legacy record', async () => {
+    // State after a kill between "temp to live" and "remove backup".
+    const live = { [HASH]: { attestations: await encryptRecord(DEK, ATTEST) } };
+    await storeAttestationData(live);
+    mockFiles.set(backupPath(), JSON.stringify({ [HASH]: { attestations: await encryptkey(PW, ATTEST) } }));
+
+    await convertLegacyAttestationRecords(HASH, PW, DEK);
+
+    expect(mockFiles.has(backupPath())).toBe(false);
+    expect(await loadAttestationData()).toEqual(live);
+  });
+
+  it('keeps the backup when the live file does not read', async () => {
+    await storeAttestationData({});
+    const backup = JSON.stringify({ [HASH]: { attestations: await encryptkey(PW, ATTEST) } });
+    mockFiles.set(livePath(), 'not json');
+    mockFiles.set(backupPath(), backup);
+
+    await convertLegacyAttestationRecords(HASH, PW, DEK);
+
+    expect(mockFiles.get(backupPath())).toBe(backup);
+  });
+
+  it('keeps a newer write that lands while the conversion runs', async () => {
+    const legacy = await encryptkey(PW, ATTEST);
+    await storeAttestationData({ [HASH]: { attestations: legacy } });
+
+    const converting = convertLegacyAttestationRecords(HASH, PW, DEK);
+    await storeAttestationDataForUser({ attestations: legacy, newer: 'newer value' }, HASH);
+    await converting;
+
+    expect((await loadAttestationData())[HASH].newer).toBe('newer value');
   });
 });

@@ -438,11 +438,29 @@ const reencryptRecord = async (record, readKey, writeKey, recordName) => {
 
 let passwordMigrationQueue = Promise.resolve();
 
-const resetUserPwdTransaction = async (
+// Wipes the plaintext vault keys of a password change when it ends, on every
+// path. The session cache keeps its own copy.
+const resetUserPwdTransaction = async (accountHash, newPwd, oldPwd, sessionScope) => {
+  const vaultKeys = [];
+  try {
+    return await resetUserPwdTransactionUnwiped(
+      accountHash,
+      newPwd,
+      oldPwd,
+      sessionScope,
+      vaultKeys,
+    );
+  } finally {
+    for (const key of vaultKeys) key.fill(0);
+  }
+};
+
+const resetUserPwdTransactionUnwiped = async (
   accountHash,
   newPwd,
   oldPwd,
   sessionScope,
+  vaultKeys,
 ) => {
   const assertResetSessionCurrent = expectedScope => {
     if (!sessionScopeIsCurrent(store.getState(), expectedScope)) {
@@ -515,6 +533,7 @@ const resetUserPwdTransaction = async (
   if (user.vault != null) {
     try {
       vaultDek = await unwrapVaultKey(oldPwd, accountHash, user.vault);
+      vaultKeys.push(vaultDek);
     } catch (vaultError) {
       if (isVaultError(vaultError, VAULT_ERROR.WRONG_PASSWORD)) {
         Alert.alert("Authentication Error", "Incorrect password");
@@ -569,7 +588,9 @@ const resetUserPwdTransaction = async (
     user.vault = await wrapVaultKey(vaultDek, newPwd, accountHash);
     // Verify the new wrap with a fresh derivation before anything is written.
     const checkDek = await unwrapVaultKey(newPwd, accountHash, user.vault);
-    if (!checkDek.equals(vaultDek)) {
+    const wrapMatches = checkDek.equals(vaultDek);
+    checkDek.fill(0);
+    if (!wrapMatches) {
       throw new Error("Vault re-wrap check failed");
     }
   }
@@ -587,6 +608,9 @@ const resetUserPwdTransaction = async (
     before,
     after,
   };
+  // Checked before the first write: a journal that startup cannot read back
+  // must never be written.
+  const journalString = serializePreparedJournal(journal);
   let committedDurable = false;
   let sessionCredentialMutationStarted = false;
 
@@ -594,7 +618,7 @@ const resetUserPwdTransaction = async (
     assertResetSessionCurrent(sessionScope);
     await SecureStorage.setItem(
       PASSWORD_MIGRATION_STORAGE_INTERNAL_KEY,
-      JSON.stringify(journal),
+      journalString,
     );
     await applyPasswordMigrationSnapshot(after);
 
@@ -953,6 +977,16 @@ const migrationError = (code, message) => {
   return error;
 };
 
+// The vault migration and the password change write their prepared journal
+// through this check, before their first storage write.
+const serializePreparedJournal = journal => {
+  const journalString = JSON.stringify(journal);
+  if (journalString.length > VAULT_MIGRATION_JOURNAL_MAX_CHARS) {
+    throw migrationError(VAULT_MIGRATION_ERROR.TOO_LARGE, 'Migration journal too large');
+  }
+  return journalString;
+};
+
 // Decrypts every value of a legacy record with the password. Any value that
 // does not decrypt aborts the migration; nothing is written. `proof` records
 // whether one value passed the GCM tag check: the old CTR reader accepts a
@@ -1144,10 +1178,7 @@ const migrateUserVaultTransaction = async (accountHash, password) => {
       before,
       after,
     };
-    const journalString = JSON.stringify(journal);
-    if (journalString.length > VAULT_MIGRATION_JOURNAL_MAX_CHARS) {
-      throw migrationError(VAULT_MIGRATION_ERROR.TOO_LARGE, 'Migration journal too large');
-    }
+    const journalString = serializePreparedJournal(journal);
 
     try {
       await SecureStorage.setItem(

@@ -5,33 +5,33 @@
 // and the next v2 unlock tries again.
 import { decryptkey } from '../seedCrypt';
 import { decryptRecord, encryptRecord, isV2Record } from '../crypto/envelope';
-import {
-  loadAttestationData,
-  storeAttestationDataForUser,
-} from '../nativeStore/attestationDataStorage';
+import { updateAttestationData } from '../nativeStore/attestationDataStorage';
 
 export const convertLegacyAttestationRecords = async (accountHash, password, dek) => {
   try {
-    // loadAttestationDataForUser hides read errors behind a default object.
-    // Read the file directly so a read error never leads to a write.
-    const all = await loadAttestationData();
-    const record = all != null ? all[accountHash] : null;
-    if (record == null || typeof record !== 'object') return false;
-
-    const next = {...record};
+    // One queued file operation: the read, the conversion and the write.
+    // A write by another operation waits, so the conversion cannot undo it.
+    // A read error rejects before anything is written.
     let changed = false;
-    for (const key of Object.keys(record)) {
-      const value = record[key];
-      if (typeof value !== 'string' || isV2Record(value)) continue;
-      const plaintext = decryptkey(password, value);
-      if (plaintext === false) continue;
-      const converted = await encryptRecord(dek, plaintext);
-      if (decryptRecord(dek, converted) !== plaintext) continue;
-      next[key] = converted;
-      changed = true;
-    }
+    await updateAttestationData(async all => {
+      const record = all[accountHash];
+      if (record == null || typeof record !== 'object') return undefined;
 
-    if (changed) await storeAttestationDataForUser(next, accountHash);
+      const next = {...record};
+      for (const key of Object.keys(record)) {
+        const value = record[key];
+        if (typeof value !== 'string' || isV2Record(value)) continue;
+        const plaintext = decryptkey(password, value);
+        if (plaintext === false) continue;
+        const converted = await encryptRecord(dek, plaintext);
+        if (decryptRecord(dek, converted) !== plaintext) continue;
+        next[key] = converted;
+        changed = true;
+      }
+      // Nothing to write: the file operation still removes a stale backup,
+      // which can hold a legacy record.
+      return changed ? {...all, [accountHash]: next} : undefined;
+    });
     return changed;
   } catch (error) {
     console.warn(`Attestation vault conversion skipped: ${error?.code || error?.name || 'unknown'}`);
