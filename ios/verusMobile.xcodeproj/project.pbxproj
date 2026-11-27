@@ -28,6 +28,7 @@
 		4E9EA99D23BB985300B9FA10 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 4E9EA99C23BB985200B9FA10 /* assets */; };
 		4EAA00012F3A000100000001 /* BuildFile in Sources */ = {isa = PBXBuildFile; };
 		4EAB00012F3A000100000001 /* SceneDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4EAB00032F3A000100000001 /* SceneDelegate.mm */; };
+		4EAB00042F3A000100000001 /* ValuICloudStatus.m in Sources */ = {isa = PBXBuildFile; fileRef = 4EAB00052F3A000100000001 /* ValuICloudStatus.m */; };
 		4EAC77502411690900A7D427 /* BuildFile in Embed Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		5E192C160435467282AA50EC /* SourceSansPro-LightItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3D75763453624C50830E810F /* SourceSansPro-LightItalic.ttf */; };
 		75559CD95AD84106BF59CF2A /* Inter18pt-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9FA1C08B8DA947138D055812 /* Inter18pt-SemiBold.ttf */; };
@@ -140,6 +141,7 @@
 		4E9EA99C23BB985200B9FA10 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = "<group>"; };
 		4EAB00022F3A000100000001 /* SceneDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = SceneDelegate.h; path = verusMobile/SceneDelegate.h; sourceTree = "<group>"; };
 		4EAB00032F3A000100000001 /* SceneDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = SceneDelegate.mm; path = verusMobile/SceneDelegate.mm; sourceTree = "<group>"; };
+		4EAB00052F3A000100000001 /* ValuICloudStatus.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ValuICloudStatus.m; path = verusMobile/ValuICloudStatus.m; sourceTree = "<group>"; };
 		75CBCAEA1D064D93960CE0FD /* Inter18pt-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Inter18pt-Regular.ttf"; path = "../assets/fonts/Inter18pt-Regular.ttf"; sourceTree = "<group>"; };
 		836BDD9D2F33DE7B0048B1FC /* storekit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = storekit.storekit; sourceTree = "<group>"; };
 		9FA1C08B8DA947138D055812 /* Inter18pt-SemiBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Inter18pt-SemiBold.ttf"; path = "../assets/fonts/Inter18pt-SemiBold.ttf"; sourceTree = "<group>"; };
@@ -207,6 +209,7 @@
 				13B07FB01A68108700A75B9A /* AppDelegate.mm */,
 				4EAB00022F3A000100000001 /* SceneDelegate.h */,
 				4EAB00032F3A000100000001 /* SceneDelegate.mm */,
+				4EAB00052F3A000100000001 /* ValuICloudStatus.m */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				13B07FB11A68108700A75B9A /* LaunchScreen.xib */,
@@ -694,6 +697,7 @@
 			files = (
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
 				4EAB00012F3A000100000001 /* SceneDelegate.mm in Sources */,
+				4EAB00042F3A000100000001 /* ValuICloudStatus.m in Sources */,
 				4E80A310241028FC00F037A9 /* bridge.swift in Sources */,
 				4EAA00012F3A000100000001 /* BuildFile in Sources */,
 				13B07FC11A68108700A75B9A /* main.m in Sources */,

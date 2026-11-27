@@ -22,8 +22,9 @@ const FILE_SUFFIX = '.json';
 const ID_RE = /^[0-9a-f]{32}$/;
 const SEED_CHANNEL = 'electrum';
 const SEED_MAX_LENGTH = 4096;
-// A store with more files than this is not ours to scan; v1 reads the newest of these.
-const MAX_FILES_READ = 20;
+// v1 compares the dates of all backup files (names carry no date). A store with more files than
+// this is not one this app made: restore stops instead of picking from a part of it.
+const MAX_FILES_READ = 100;
 
 export const backupFileName = backupId => `${FILE_PREFIX}${backupId}${FILE_SUFFIX}`;
 
@@ -97,6 +98,14 @@ export async function saveCloudBackup({store, seed, password, backupId, now = ()
   } catch (e) {
     throw new CloudError(CLOUD_ERROR.VERIFY, 'The saved backup did not read back');
   }
+  // iCloud: the file must be uploaded, not only written on this phone.
+  if (store.confirmUploaded) {
+    try {
+      await store.confirmUploaded(name);
+    } catch (e) {
+      throw storeError(e, CLOUD_ERROR.UNREACHABLE);
+    }
+  }
   return {backupId, createdAt};
 }
 
@@ -107,7 +116,8 @@ const createdTime = header => {
 
 // The newest backup in the store (v1: no list). Runs no KDF: it parses and bounds-checks each file
 // and compares the header dates. Throws NO_BACKUP when the store has no backup file, DAMAGED (or
-// the envelope error) when no file is a valid backup, UNREACHABLE when the reads failed.
+// the envelope error) when no file is a valid backup, UNREACHABLE when a read failed (also when
+// another file read: the failed one can be the newest).
 export async function findLatestCloudBackup(store) {
   let names;
   try {
@@ -115,8 +125,9 @@ export async function findLatestCloudBackup(store) {
   } catch (e) {
     throw storeError(e, CLOUD_ERROR.UNREACHABLE);
   }
-  const ids = [...new Set((names ?? []).map(backupIdFromName).filter(Boolean))].slice(0, MAX_FILES_READ);
+  const ids = [...new Set((names ?? []).map(backupIdFromName).filter(Boolean))];
   if (ids.length === 0) throw new CloudError(CLOUD_ERROR.NO_BACKUP, 'No backup in this store');
+  if (ids.length > MAX_FILES_READ) throw new CloudError(CLOUD_ERROR.DAMAGED, 'Too many backup files');
 
   let best = null;
   let parseError = null;
@@ -126,6 +137,7 @@ export async function findLatestCloudBackup(store) {
     try {
       text = await store.read(backupFileName(id));
     } catch (e) {
+      if (isCloudError(e, CLOUD_ERROR.CANCELLED)) throw e;
       if (!isCloudError(e, CLOUD_ERROR.NOT_FOUND)) readError = storeError(e, CLOUD_ERROR.UNREACHABLE);
       continue;
     }
@@ -143,10 +155,11 @@ export async function findLatestCloudBackup(store) {
       parseError = e;
     }
   }
+  // A file that did not read can be the newest: never offer an older backup in its place.
+  if (readError) throw readError;
   if (best) {
     return {file: best.file, backupId: best.header.backupId, createdAt: best.header.createdAt};
   }
-  if (readError) throw readError;
   if (parseError) throw parseError;
   throw new CloudError(CLOUD_ERROR.NO_BACKUP, 'No backup in this store');
 }

@@ -67,8 +67,11 @@ export function createFakeStore({fs, dir, kind = Platform.OS === 'ios' ? 'icloud
         const tmp = path(`${name}.tmp`);
         const old = path(`${name}.old`);
         await fs.writeFile(tmp, text, 'utf8');
-        if (await fs.exists(old)) await fs.unlink(old);
-        if (await fs.exists(path(name))) await fs.moveFile(path(name), old);
+        // A stopped replace can leave only the old copy: keep it until the new file is in place.
+        if (await fs.exists(path(name))) {
+          if (await fs.exists(old)) await fs.unlink(old);
+          await fs.moveFile(path(name), old);
+        }
         await fs.moveFile(tmp, path(name));
         if (await fs.exists(old)) await fs.unlink(old);
       }),

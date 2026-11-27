@@ -2,12 +2,13 @@
 // the cloud opens with its backup password (openCloudBackup: Argon2id, AES-256-GCM). Then the import
 // path goes on to Create password, as the other lanes. A failed tag check is "not correct"; a file
 // that does not open for another reason is damaged, or from a newer app.
-import React, {useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import ValuButton from '../../components/ValuButton';
 import {DenseScreen, ErrorText, Heading, StepList, TopBar, useFocusOnArrival} from '../../components/Layout';
 import Icon from '../../components/Icon';
 import StepIcon from '../../components/StepIcons';
+import useSecureScreen from '../../components/useSecureScreen';
 import {biometryName} from '../../logic/biometry';
 import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
 import {colors, type} from '../../theme/tokens';
@@ -33,6 +34,20 @@ export default function ImportCloud({navigation}) {
   const [error, setError] = useState(null);
   const [opening, setOpening] = useState(false);
   const input = useRef(null);
+  // Back during the unlock (it runs Argon2id, about a second): the result is dropped. It must not
+  // put a seed into the onboarding state after the user left this screen.
+  const attempt = useRef(0);
+  useEffect(() => {
+    const off = navigation.addListener('beforeRemove', () => {
+      attempt.current += 1;
+    });
+    return () => {
+      off();
+      attempt.current += 1;
+    };
+  }, [navigation]);
+  // Android: no Recents picture or screenshot of a shown password.
+  useSecureScreen(password.length > 0);
   const steps = stepListFor('import', ROUTES.importCloud, {
     biometry: ob.biometry?.biometry === true,
     bioName: biometryName(ob.biometry),
@@ -41,10 +56,12 @@ export default function ImportCloud({navigation}) {
 
   const open = async () => {
     if (opening || password.length === 0 || !found) return;
+    const mine = ++attempt.current;
     setOpening(true);
     setError(null);
     try {
       const {seed, backupId} = await openCloudBackup(found, password);
+      if (mine !== attempt.current) return;
       ob.setSecret(seed);
       ob.setSeedHasZ(chipSeedHasZ(seed));
       ob.setCloudBackupId(backupId);
@@ -55,6 +72,7 @@ export default function ImportCloud({navigation}) {
       ob.sheetReturn.current = true;
       navigation.replace(nextRoute('import', ROUTES.importCloud));
     } catch (e) {
+      if (mine !== attempt.current) return;
       const kind = cloudErrorKind(e);
       setError(kind === 'wrong-password' ? 'wrong' : kind === 'update-app' ? 'update' : 'damaged');
     } finally {

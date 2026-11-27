@@ -20,8 +20,11 @@ const apply = secure => {
   }
 };
 
-export default function useSecureScreen() {
+// active: false lets a screen hold the flag only while it shows a secret (the cloud backup password
+// screens: while a field has text).
+export default function useSecureScreen(active = true) {
   useEffect(() => {
+    if (!active) return undefined;
     holders += 1;
     if (holders === 1) apply(true);
     return () => {
@@ -33,7 +36,7 @@ export default function useSecureScreen() {
         ready.forEach(run => run());
       }
     };
-  }, []);
+  }, [active]);
 }
 
 // An Android Modal copies FLAG_SECURE from the activity when its dialog is made, and keeps it. A sheet

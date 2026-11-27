@@ -76,6 +76,8 @@ export default function Welcome({navigation}) {
   const taps = useRef(0);
   const later = useRef(null);
   const waitSecure = useRef(() => {});
+  const resetRun = useRef(ob.reset);
+  resetRun.current = ob.reset;
   const camera = useCameraGate(navigation);
   const nfc = useNfcRead({
     onPhrase: phrase => {
@@ -96,6 +98,8 @@ export default function Welcome({navigation}) {
     const off = navigation.addListener('focus', () => {
       if (!ob.sheetReturn.current) return;
       ob.sheetReturn.current = false;
+      // The lane was left: drop what it had (a phrase, an opened cloud backup) before the sheet.
+      resetRun.current();
       clearTimeout(later.current);
       later.current = setTimeout(() => {
         waitSecure.current = afterSecureScreens(() => setWaySheet(true));
@@ -194,8 +198,10 @@ export default function Welcome({navigation}) {
     if (mine !== look.current) return;
     if (result) show(result);
     else {
+      // A closed Google consent screen: back to the import sheet.
       clearTimeout(later.current);
       setCloudSheet(null);
+      later.current = setTimeout(() => setWaySheet(true), AFTER_SHEET_MS);
     }
   };
 

@@ -13,6 +13,11 @@ import {CloudError, CLOUD_ERROR} from '../cloudErrors';
 const ICLOUD_READ_TRIES = 10;
 const ICLOUD_READ_WAIT_MS = 1500;
 const DRIVE_TIMEOUT_MS = 20000;
+// A write to the iCloud container is local first. The save waits until iCloud reports the file as
+// uploaded (ValuICloudStatus, ios/verusMobile/ValuICloudStatus.m); after this time it says "not
+// saved" and the user can try again.
+const ICLOUD_UPLOAD_WAIT_MS = 60000;
+const ICLOUD_UPLOAD_POLL_MS = 1000;
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -52,11 +57,12 @@ const loadLibrary = () => {
   }
 };
 
-function libraryStore({kind, storage, ready, readRetry}) {
+function libraryStore({kind, storage, ready, readRetry, confirmUploaded}) {
   return {
     kind,
     fake: false,
     isAvailable: ready,
+    ...(confirmUploaded ? {confirmUploaded} : {}),
     list: () => guard(() => storage().readdir('/')).then(names =>
       // iCloud names a file that is not downloaded yet ".<name>.icloud".
       names.map(n => n.replace(/^\.(.+)\.icloud$/, '$1')),
@@ -99,13 +105,35 @@ export function icloudStore() {
       }
     }
   };
-  return libraryStore({kind: 'icloud', storage, ready, readRetry});
+  // Resolves only when iCloud says the file is uploaded. Without the native module, or when the
+  // upload fails or takes too long: UNREACHABLE, and the backup is not marked done.
+  const confirmUploaded = async name => {
+    const status = NativeModules.ValuICloudStatus;
+    if (!status?.uploadState) throw new CloudError(CLOUD_ERROR.UNREACHABLE, 'No upload status');
+    const end = Date.now() + ICLOUD_UPLOAD_WAIT_MS;
+    for (;;) {
+      let state = null;
+      try {
+        state = await status.uploadState(name);
+      } catch (e) {
+        state = null;
+      }
+      if (state?.uploaded) return;
+      if (state?.failed || Date.now() >= end) {
+        throw new CloudError(CLOUD_ERROR.UNREACHABLE, 'The backup did not upload');
+      }
+      await wait(ICLOUD_UPLOAD_POLL_MS);
+    }
+  };
+  return libraryStore({kind: 'icloud', storage, ready, readRetry, confirmUploaded});
 }
 
 // ValuDriveAuth (android/app/src/main/java/com/valumobile/ValuDriveAuthModule.kt):
 //   isAvailable() -> boolean (Google Play services present)
 //   getToken(scope) -> access token; shows the account and consent screen when needed.
-//   Rejects with code "CANCELLED" when the user closes it, "UNAVAILABLE" otherwise.
+//   Rejects with code "CANCELLED" when the user closes it, "UNAVAILABLE" otherwise. The account
+//   picker is part of that screen, so UNAVAILABLE is a failure to reach Google, not "no account".
+// A Drive write returns after the server has the file, so it needs no upload check.
 export function driveStore() {
   const lib = loadLibrary();
   const auth = NativeModules.ValuDriveAuth;
@@ -114,7 +142,7 @@ export function driveStore() {
     try {
       return await auth.getToken(DRIVE_APPDATA_SCOPE);
     } catch (e) {
-      throw new CloudError(e?.code === 'CANCELLED' ? CLOUD_ERROR.CANCELLED : CLOUD_ERROR.OFF);
+      throw new CloudError(e?.code === 'CANCELLED' ? CLOUD_ERROR.CANCELLED : CLOUD_ERROR.UNREACHABLE);
     }
   };
   const storage = () => {

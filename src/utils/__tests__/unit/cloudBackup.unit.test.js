@@ -114,6 +114,20 @@ describe('fake store contract', () => {
     }
   });
 
+  it('keeps the last copy when a replace stops twice in a row', async () => {
+    const { fs, store } = newStore();
+    await store.write('a.json', 'old');
+    // First stop: after the old file moved aside, before the new one is in place.
+    fs.failOn('moveFile', 2);
+    await store.write('a.json', 'new').catch(() => {});
+    // Second stop: before the new file is in place again.
+    fs.failOn('moveFile', 1);
+    await store.write('a.json', 'newer').catch(() => {});
+    fs.clearFail();
+    expect(await store.list()).toEqual(['a.json']);
+    expect(await store.read('a.json')).toBe('old');
+  });
+
   it('turns a file system failure into UNREACHABLE', async () => {
     const { fs, store } = newStore();
     fs.failOn('writeFile', 1);
@@ -190,6 +204,17 @@ describe('save and restore', () => {
       .rejects.toMatchObject({ code: CLOUD_ERROR.UNREACHABLE });
   });
 
+  it('waits for the upload of an iCloud file, and fails the save when it does not upload', async () => {
+    const { store } = newStore();
+    const uploaded = [];
+    const uploads = { ...store, confirmUploaded: async name => { uploaded.push(name); } };
+    await saveCloudBackup({ store: uploads, seed: SEED, password: PASSWORD, backupId: ID_A });
+    expect(uploaded).toEqual([backupFileName(ID_A)]);
+    const stuck = { ...store, confirmUploaded: async () => { throw new Error('not uploaded'); } };
+    await expect(saveCloudBackup({ store: stuck, seed: SEED, password: PASSWORD, backupId: ID_A }))
+      .rejects.toMatchObject({ code: CLOUD_ERROR.UNREACHABLE });
+  });
+
   it('refuses an empty seed and a malformed backup id before any write', async () => {
     const { store, fs } = newStore();
     await expect(saveCloudBackup({ store, seed: '', password: PASSWORD, backupId: ID_A })).rejects.toBeInstanceOf(CloudError);
@@ -248,6 +273,35 @@ describe('restore error mapping', () => {
     const { store, fs } = await saved();
     fs.files.set(`/cloud/${backupFileName(ID_B)}`, '{"format":"valu-wallet-backup"');
     expect((await findLatestCloudBackup(store)).backupId).toBe(ID_A);
+  });
+
+  it('finds the newest backup also when it is listed after 20 others', async () => {
+    const { store, fs } = newStore();
+    const t = iso => () => new Date(iso);
+    await saveCloudBackup({ store, seed: 'old seed', password: PASSWORD, backupId: ID_A, now: t('2026-11-20T10:00:00Z') });
+    const oldFile = await store.read(backupFileName(ID_A));
+    for (let i = 0; i < 21; i++) {
+      fs.files.set(`/cloud/${backupFileName(i.toString(16).padStart(32, 'c'))}`, oldFile);
+    }
+    await saveCloudBackup({ store, seed: 'new seed', password: PASSWORD, backupId: ID_B, now: t('2026-11-26T10:00:00Z') });
+    const names = await store.list();
+    const last = { ...store, list: async () => [...names.filter(n => n !== backupFileName(ID_B)), backupFileName(ID_B)] };
+    expect((await findLatestCloudBackup(last)).backupId).toBe(ID_B);
+  });
+
+  it('offers no older backup when another file does not read, and stops on a cancelled consent', async () => {
+    const { store } = await saved();
+    const names = [backupFileName(ID_A), backupFileName(ID_B)];
+    const newestFails = {
+      list: async () => names,
+      read: async name => {
+        if (name === backupFileName(ID_B)) throw new CloudError(CLOUD_ERROR.UNREACHABLE);
+        return store.read(name);
+      },
+    };
+    await expect(findLatestCloudBackup(newestFails)).rejects.toMatchObject({ code: CLOUD_ERROR.UNREACHABLE });
+    const cancelled = { list: async () => names, read: async () => { throw new CloudError(CLOUD_ERROR.CANCELLED); } };
+    await expect(findLatestCloudBackup(cancelled)).rejects.toMatchObject({ code: CLOUD_ERROR.CANCELLED });
   });
 
   it('no backup file is "no-backup", other files are ignored', async () => {

@@ -10,6 +10,7 @@ import ValuButton from '../../components/ValuButton';
 import {DenseScreen, ErrorText, Heading, StepList, TopBar, useFocusOnArrival} from '../../components/Layout';
 import {METER_ROOM, Meter, PasswordField} from '../../components/PasswordFields';
 import StepIcon from '../../components/StepIcons';
+import useSecureScreen from '../../components/useSecureScreen';
 import {CLOUD_BACKUP_MIN_SCORE, getPasswordGate, warmPasswordScorer} from '../../logic/password';
 import {ELECTRUM} from '../../../utils/constants/intervalConstants';
 import {colors, type} from '../../theme/tokens';
@@ -25,6 +26,8 @@ export default function CloudPassword({navigation}) {
   const first = useRef(null);
   const second = useRef(null);
   const gate = getPasswordGate(password, confirm, CLOUD_BACKUP_MIN_SCORE);
+  // Android: no Recents picture or screenshot of a shown password.
+  useSecureScreen(password.length > 0 || confirm.length > 0);
   const auth = useWalletAuth({
     body: 'Enter the password of this wallet to save its backup.',
     prompt: 'Save your wallet backup',
@@ -44,6 +47,10 @@ export default function CloudPassword({navigation}) {
       const seed = result?.seeds?.[ELECTRUM];
       if (!seed) return;
       cloudJob.current = {seed, password};
+      // The fields do not keep the password behind the Saving screen. A cancelled Google consent
+      // comes back here with empty fields.
+      setPassword('');
+      setConfirm('');
       navigation.navigate(BACKUP_ROUTES.cloudSaving);
     } finally {
       setBusy(false);
