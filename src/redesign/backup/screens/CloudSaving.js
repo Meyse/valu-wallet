@@ -4,7 +4,7 @@
 // A kill at any point leaves the reminder on Home: the record changes after the read-back only.
 // The seed and the password are dropped from memory when the save ends, either way.
 import React, {useEffect, useRef, useState} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {Keyboard, StyleSheet, Text, View} from 'react-native';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -92,6 +92,8 @@ export default function CloudSaving({navigation}) {
   };
 
   useEffect(() => {
+    // The keyboard of the wallet password sheet must not stay over this screen.
+    Keyboard.dismiss();
     save();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
