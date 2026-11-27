@@ -473,17 +473,40 @@ describe('unlock (password and biometric login share validateLogin)', () => {
     expect(result.vaultKey).toBeNull();
     expect(await readAll()).toEqual(before);
   });
+
+  it('opens a CTR-only wallet unchanged and reports it as legacy', async () => {
+    await AsyncStorage.clear();
+    await storeLegacyUser({ userName: NAME, password: PW, seeds: {} });
+    const record = parse(await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY));
+    record.users[0].encryptedKeys.electrum = await aes256.legacy_encrypt(PW, 'legacy ctr seed words');
+    await SecureStorage.setItem(USER_DATA_STORAGE_INTERNAL_KEY, JSON.stringify(record));
+    const before = await readAll();
+    const calls = instrumentWrites();
+
+    const result = await validateLogin(record.users[0], PW, true, false);
+    jest.restoreAllMocks();
+
+    expect(result.activeAccount.vaultVersion).toBeNull();
+    expect(result.vaultKey).toBeNull();
+    expect(decryptkey(PW, result.activeAccount.seeds.electrum)).toBe('legacy ctr seed words');
+    expect(calls).toEqual([]);
+    expect(await readAll()).toEqual(before);
+  });
 });
 
 describe('attestation records', () => {
   const ATTEST = JSON.stringify({ claim: 'fixture attestation' });
   const ATTEST_BINDING = { accountHash: HASH, area: envelope.RECORD_AREA.ATTESTATION, field: 'attestations' };
 
-  const fakeAttestationFile = async records => {
+  const fakeAttestationFile = async (records, { failWrites = false } = {}) => {
     let file = { [HASH]: records, [OTHER_HASH]: { kept: 'other account value' } };
+    jest.spyOn(attestationStorage, 'loadAttestationData').mockImplementation(async () => file);
     jest.spyOn(attestationStorage, 'updateAttestationData').mockImplementation(async updater => {
       const next = await updater({ ...file });
-      if (next !== undefined) file = next;
+      if (next !== undefined) {
+        if (failWrites) throw new Error('Injected attestation write failure');
+        file = next;
+      }
       return next;
     });
     return () => file;
@@ -515,6 +538,27 @@ describe('attestation records', () => {
 
     await expect(resetUserPwd(HASH, NEW_PW, PW)).resolves.not.toBe(false);
     expect(envelope.decryptRecord(dek, readFile()[HASH].attestations, ATTEST_BINDING)).toBe(ATTEST);
+  });
+
+  it('keeps the old password when a legacy attestation cannot move to the vault key', async () => {
+    await migrateUserVault(HASH, PW);
+    const legacy = await encryptkey(PW, ATTEST);
+    const readFile = await fakeAttestationFile({ attestations: legacy }, { failWrites: true });
+    const user = parse(await SecureStorage.getItem(USER_DATA_STORAGE_INTERNAL_KEY)).users
+      .find(u => u.accountHash === HASH);
+    const sessionKey = await authBox.initSession(PW);
+    store.dispatch(authenticateUser({ ...user, vaultVersion: 2 }, sessionKey));
+    store.dispatch(signIntoAuthenticatedAccount());
+    const before = await readAll();
+    const calls = instrumentWrites();
+
+    // After the change the old password, the only key of this record, is gone.
+    await expect(resetUserPwd(HASH, NEW_PW, PW))
+      .rejects.toMatchObject({ code: 'VAULT_ATTESTATION_NOT_CONVERTED' });
+    expect(calls).toEqual([]);
+    expect(await readAll()).toEqual(before);
+    expect(readFile()[HASH].attestations).toBe(legacy);
+    expect(await expectWalletOpens(PW)).toBe('v2');
   });
 });
 

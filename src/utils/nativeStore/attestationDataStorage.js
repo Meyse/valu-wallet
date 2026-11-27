@@ -67,6 +67,15 @@ const writeAttestationFile = async data => {
   const {tempFilePath, finalFilePath} = attestationFilePaths();
   // Write to a temporary file first, then rename to avoid corruption
   await RNFS.writeFile(tempFilePath, jsonString, 'utf8');
+  // The live file stays until the new file reads back the same.
+  if ((await RNFS.readFile(tempFilePath, 'utf8')) !== jsonString) {
+    try {
+      await RNFS.unlink(tempFilePath);
+    } catch (cleanupError) {
+      // The next write replaces the temp file.
+    }
+    throw new Error('Attestation data did not read back after the write');
+  }
   await replaceWithBackup(tempFilePath, finalFilePath);
   return data;
 };

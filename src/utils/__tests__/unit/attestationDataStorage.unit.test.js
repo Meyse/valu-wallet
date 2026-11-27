@@ -5,6 +5,7 @@ const mockFiles = new Map();
 let mockFailAt = null; // (index, op) => 'throw' | 'kill' | null
 let mockOpIndex = 0;
 let mockKilled = false;
+let mockTruncateWrites = false; // the write reports success but stores less
 
 const mockFsOp = (op, run) => async (...args) => {
   if (mockKilled) throw new Error('process killed');
@@ -27,7 +28,9 @@ const mockEnoent = path => Object.assign(new Error(`ENOENT: ${path}`), { code: '
 
 jest.mock('react-native-fs', () => ({
   DocumentDirectoryPath: '/docs',
-  writeFile: mockFsOp('writeFile', async (path, data) => { mockFiles.set(path, data); }),
+  writeFile: mockFsOp('writeFile', async (path, data) => {
+    mockFiles.set(path, mockTruncateWrites ? data.slice(0, Math.floor(data.length / 2)) : data);
+  }),
   readFile: async path => {
     if (!mockFiles.has(path)) throw mockEnoent(path);
     return mockFiles.get(path);
@@ -70,6 +73,8 @@ const restart = () => {
   mockKilled = false;
 };
 
+afterEach(() => { mockTruncateWrites = false; });
+
 describe('attestation file replace', () => {
   beforeEach(reset);
 
@@ -87,6 +92,13 @@ describe('attestation file replace', () => {
     await reset();
     return count;
   };
+
+  it('keeps the old file when the new file does not read back the same', async () => {
+    mockTruncateWrites = true;
+    await expect(storeAttestationData(NEW)).rejects.toThrow();
+    mockTruncateWrites = false;
+    expect(await loadAttestationData()).toEqual(OLD);
+  });
 
   it('keeps a readable copy after an exception at each operation', async () => {
     const count = await opsPerReplace();

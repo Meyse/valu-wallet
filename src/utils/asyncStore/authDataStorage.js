@@ -17,7 +17,11 @@ import {
 import { isVaultError, VAULT_ERROR } from '../crypto/vaultErrors'
 import { Buffer } from 'buffer'
 import { setSessionVaultKey } from '../vault/vaultSession'
-import { convertLegacyAttestationRecords } from '../vault/attestationVaultMigration'
+import {
+  ATTESTATION_NOT_CONVERTED,
+  convertLegacyAttestationRecords,
+  hasLegacyAttestationRecords,
+} from '../vault/attestationVaultMigration'
 import { passwordFailsRule } from '../auth/passwordRule'
 
 import { hashAccountId } from "../crypto/hash";
@@ -559,8 +563,14 @@ const resetUserPwdTransactionUnwiped = async (
   }
   if (vaultDek != null) {
     // Attestations live outside the journal. Convert any legacy record now,
-    // while the old password still reads it (best effort, as on unlock).
+    // while the old password still reads it. After the change no key opens
+    // a legacy record, so stop before any write if one remains.
     await convertLegacyAttestationRecords(accountHash, oldPwd, vaultDek);
+    if (await hasLegacyAttestationRecords(accountHash, oldPwd)) {
+      const error = new Error('An attestation record did not move to the vault key');
+      error.code = ATTESTATION_NOT_CONVERTED;
+      throw error;
+    }
   }
   const readKey = {password: oldPwd, dek: vaultDek};
   const writeKey = vaultDek != null ? {dek: vaultDek} : {password: newPwd};
