@@ -1,4 +1,4 @@
-// R04 Create password, R05 too weak, R06 no match. Gate: score 65 and a match.
+// R04 Create password, R05 too weak, R06 no match. Gate: logic/password.js (8 characters, zxcvbn score 2) and a match.
 import React, {useRef, useState} from 'react';
 import {Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import ValuButton from '../../components/ValuButton';
@@ -136,7 +136,7 @@ export default function CreatePassword({navigation}) {
                 testID="password-new"
               />
               <Meter strength={gate.strength} />
-              <ErrorText>{gate.error === 'weak' ? 'Make it longer, or add numbers and symbols.' : null}</ErrorText>
+              <ErrorText>{gate.error === 'weak' ? 'Make it longer. Try 3 or 4 unrelated words.' : null}</ErrorText>
             </View>
             <View>
               <PasswordField

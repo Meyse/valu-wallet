@@ -119,7 +119,7 @@ export default function ChipPassword({navigation}) {
   const error = own ? gate.error : wrong ? 'wrong' : null;
   const errorText = {
     wrong: 'This password is not right. Try again.',
-    weak: 'Use a stronger password: 8 or more characters, with numbers or symbols.',
+    weak: 'Make it longer. Try 3 or 4 unrelated words.',
     mismatch: 'The passwords do not match.',
   }[error];
 

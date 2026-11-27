@@ -18,44 +18,49 @@ const VECTOR_24 =
 // Public example WIF from the Bitcoin wiki "Wallet import format" page.
 const EXAMPLE_WIF = '5HueCGU8rMjxEXxiPuD5BDku4MkFqeZyd4dZ1jvhTVqvbTLvyTJ';
 
-describe('password gate (score 65 and match)', () => {
-  // Expected scores are worked by hand from scorePassword: 5 points per first use of a
-  // character, plus 10 per character class after the first.
-  it('rates a 9-character password with 3 classes at exactly 65 as Fair', () => {
-    const s = getPasswordStrength('abcdefg1!'); // 9 x 5 + 2 x 10 = 65
-    expect(s.score).toBe(65);
-    expect(s.label).toBe('Fair');
-    expect(s.strongEnough).toBe(true);
+describe('password rule (plan A5 and C2): 8 characters and zxcvbn score 2', () => {
+  // The lists and the expected levels are from the plan (C2 "Rule"), not from the library.
+  it.each(['12345678', 'password1', 'Password1!', 'qwertyui', 'valuwallet1', 'iloveyou2024'])(
+    'rates %s as Weak and keeps Continue off',
+    password => {
+      expect(getPasswordStrength(password).label).toBe('Weak');
+      expect(getPasswordGate(password, password)).toMatchObject({error: 'weak', canContinue: false});
+    },
+  );
+
+  it.each(['orbit lantern cactus velvet', 'kX9#vQ2$mL7!pR4w'])('lets %s pass', password => {
+    expect(getPasswordStrength(password).strongEnough).toBe(true);
+    expect(getPasswordGate(password, password)).toMatchObject({error: null, canContinue: true});
   });
 
-  it('blocks a password under score 65', () => {
-    const s = getPasswordStrength('abcdefgh'); // 8 x 5 + 0 = 40
-    expect(s.label).toBe('Weak');
-    expect(getPasswordGate('abcdefgh', 'abcdefgh')).toMatchObject({
-      error: 'weak',
-      canContinue: false,
-    });
+  it('needs 8 characters: the same random characters are Weak at 7', () => {
+    expect(getPasswordStrength('kX9#vQ2').label).toBe('Weak');
+    expect(getPasswordStrength('kX9#vQ2$').strongEnough).toBe(true);
   });
 
-  it('gives 0 under the minimum length of 7', () => {
-    expect(getPasswordStrength('Ab1!').score).toBe(0);
+  it('counts an emoji as one character', () => {
+    // 7 characters, 9 UTF-16 units.
+    expect(getPasswordStrength('kX9#v\u{1F511}\u{1F512}').label).toBe('Weak');
   });
 
-  it('rates 75 as Good and 95 as Strong', () => {
-    expect(getPasswordStrength('Abcdefg1!').label).toBe('Good'); // 45 + 30
-    expect(getPasswordStrength('Abcdefgh1!xyz').label).toBe('Strong'); // 65 + 30
-  });
-
-  it('needs the confirmation to match before Continue turns on', () => {
-    expect(getPasswordGate('Abcdefg1!', '')).toMatchObject({error: null, canContinue: false});
-    expect(getPasswordGate('Abcdefg1!', 'Abcdefg1')).toMatchObject({
+  it('checks every character of a 70-character password (no truncation)', () => {
+    const long = 'orbit lantern cactus velvet tundra mosaic pickle ember harbor quill 🔑!';
+    expect(Array.from(long).length).toBeGreaterThanOrEqual(64);
+    expect(getPasswordGate(long, long).canContinue).toBe(true);
+    expect(getPasswordGate(long, long.slice(0, -1) + '?')).toMatchObject({
       error: 'mismatch',
       canContinue: false,
     });
-    expect(getPasswordGate('Abcdefg1!', 'Abcdefg1!')).toMatchObject({
-      error: null,
-      canContinue: true,
-    });
+  });
+
+  it('shows no meter for an empty password', () => {
+    expect(getPasswordStrength('')).toMatchObject({level: 0, label: null, strongEnough: false});
+  });
+
+  it('needs the confirmation to match before Continue turns on', () => {
+    const p = 'orbit lantern cactus velvet';
+    expect(getPasswordGate(p, '')).toMatchObject({error: null, canContinue: false});
+    expect(getPasswordGate(p, 'orbit lantern cactus')).toMatchObject({error: 'mismatch', canContinue: false});
   });
 });
 
