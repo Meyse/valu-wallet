@@ -14,7 +14,7 @@ import StepIcon from '../../components/StepIcons';
 import PasswordPill from '../../components/PasswordPill';
 import Sheet from '../../components/Sheet';
 import Icon from '../../components/Icon';
-import {getPasswordGate} from '../../logic/password';
+import {getPasswordGate, warmPasswordScorer} from '../../logic/password';
 import {checkPinForUser} from '../../../utils/asyncStore/authDataStorage';
 import {isValid24WordBip39Mnemonic} from '../../../utils/walletBackup/walletBackup';
 import {ELECTRUM} from '../../../utils/constants/intervalConstants';
@@ -53,7 +53,14 @@ export default function ChipPassword({navigation}) {
   const auth = useWalletAuth({body: 'Enter the password of this wallet to write its recovery phrase to the chip.'});
   useFocusOnArrival(() => first.current?.focus());
 
-  const gate = getPasswordGate(password, confirm);
+  // Build the word index when the own-password fields open, not on the first key.
+  useEffect(() => {
+    if (!own) return undefined;
+    const t = setTimeout(warmPasswordScorer, 0);
+    return () => clearTimeout(t);
+  }, [own]);
+  // The wallet password (not own) is checked by unlocking, not by the strength rule.
+  const gate = own ? getPasswordGate(password, confirm) : null;
   const ready = own ? gate.canContinue : password.length > 0;
 
   const unlockPhrase = async () => {

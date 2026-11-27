@@ -1,5 +1,5 @@
 import {placeWords} from '../importValidation';
-import {getPasswordGate, getPasswordStrength} from '../password';
+import {CLOUD_BACKUP_MIN_SCORE, getPasswordGate, getPasswordStrength} from '../password';
 import {createVerifyQuestions, findVerifyMismatches} from '../verify';
 import {
   checkPhrase,
@@ -31,6 +31,23 @@ describe('password rule (plan A5 and C2): 8 characters and zxcvbn score 2', () =
   it.each(['orbit lantern cactus velvet', 'kX9#vQ2$mL7!pR4w'])('lets %s pass', password => {
     expect(getPasswordStrength(password).strongEnough).toBe(true);
     expect(getPasswordGate(password, password)).toMatchObject({error: null, canContinue: true});
+  });
+
+  // Meter levels (plan A5): score 2 Fair, 3 Good, 4 Strong. The app gate takes Fair; the cloud
+  // backup gate (score 3) takes Good, not Fair.
+  it.each([
+    ['velvetfox', 'Fair', true, false],
+    ['harbor quill', 'Good', true, true],
+    ['mosaic pickle ember', 'Strong', true, true],
+  ])('rates %s as %s (app gate %s, cloud gate %s)', (password, label, app, cloud) => {
+    expect(getPasswordStrength(password).label).toBe(label);
+    expect(getPasswordStrength(password).strongEnough).toBe(app);
+    expect(getPasswordStrength(password, CLOUD_BACKUP_MIN_SCORE).strongEnough).toBe(cloud);
+  });
+
+  it('reads past the first 256 characters', () => {
+    const password = 'a'.repeat(256) + 'orbit lantern cactus velvet';
+    expect(getPasswordGate(password, password).canContinue).toBe(true);
   });
 
   it('needs 8 characters: the same random characters are Weak at 7', () => {

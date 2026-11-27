@@ -1,5 +1,5 @@
 // R04 Create password, R05 too weak, R06 no match. Gate: logic/password.js (8 characters, zxcvbn score 2) and a match.
-import React, {useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import ValuButton from '../../components/ValuButton';
 import {
@@ -13,7 +13,7 @@ import {
 } from '../../components/Layout';
 import Icon from '../../components/Icon';
 import StepIcon from '../../components/StepIcons';
-import {getPasswordGate} from '../../logic/password';
+import {getPasswordGate, warmPasswordScorer} from '../../logic/password';
 import {biometryName} from '../../logic/biometry';
 import {ROUTES, nextRoute, stepListFor} from '../../logic/steps';
 import {colors, type} from '../../theme/tokens';
@@ -106,6 +106,11 @@ export default function CreatePassword({navigation}) {
   });
 
   useFocusOnArrival(() => first.current?.focus());
+  // Build the word index while the screen slides in, not on the first key.
+  useEffect(() => {
+    const t = setTimeout(warmPasswordScorer, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const next = () => {
     if (!gate.canContinue) return;

@@ -20,23 +20,29 @@ export const STRENGTH_LABELS = {
   5: 'Strong',
 };
 
+// zxcvbn reads only the first maxLength characters (default 256). 1024 covers any typed or pasted
+// password; a 1000-character check takes about 10 ms in Node.
+const MAX_SCORED_LENGTH = 1024;
+
 let zxcvbn = null;
 const estimator = () => {
-  if (!zxcvbn) zxcvbn = new ZxcvbnFactory({dictionary, graphs: adjacencyGraphs});
+  if (!zxcvbn) {
+    zxcvbn = new ZxcvbnFactory({dictionary, graphs: adjacencyGraphs, maxLength: MAX_SCORED_LENGTH});
+  }
   return zxcvbn;
 };
 
-// Characters as the user sees them: an emoji counts as one.
+// The first check builds the word index (about 170 ms on Hermes). A screen with a password field
+// calls this after it arrives, so the first key does not wait for it. No user data is used.
+export const warmPasswordScorer = () => {
+  estimator().check('warm up', APP_WORDS);
+};
+
+// Unicode code points: an emoji such as a key counts as one (NIST SP 800-63B-4 counts the same way).
 const lengthOf = password => Array.from(password).length;
 
-// The screen asks again on every key in either field: keep the last answer.
-let last = {password: null, score: 0};
-export const scorePassword = password => {
-  if (password !== last.password) {
-    last = {password, score: estimator().check(password, APP_WORDS).score};
-  }
-  return last.score;
-};
+// No cache: a cache would keep the last typed password in memory after the screen clears it.
+export const scorePassword = password => estimator().check(password, APP_WORDS).score;
 
 // Level 0 = empty. 2 Weak, 3 Fair, 4 Good, 5 Strong (the meter and its colours).
 export const getPasswordStrength = (password, minScore = APP_PASSWORD_MIN_SCORE) => {
